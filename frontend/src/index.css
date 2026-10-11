@@ -2,12 +2,67 @@
 @import "tailwindcss";
 
 @theme {
-  --color-cream-white: #f4f1de;
-  --color-black-text: #1a1a1a;
-  --color-dark-cocoa: #3d2c2e;
-  --color-terracotta: #e07a5f;
-  --color-terracotta-dark: #c5664e;
-  --color-latte: #f2cc8f;
-  --color-latte-dark: #d6b37c;
+  /* Fuente Principal */
   --font-sans: "Inter", sans-serif;
+
+  /* Fondos y Lienzo */
+  --color-canvas: #e8e7ed;
+  --color-canvas-dim: #cfcdd8;
+  --color-canvas-muted: #f3f3f7;
+  --color-canvas-white: #ffffff;
+  --color-cream-white: #f4f1de;
+  --color-surface-hover: #dedde5;
+
+  /* Textos Principales */
+  --color-text-main: #2b2c34;
+  --color-text-muted: #5f5f70;
+  --color-text-cacao: #684549;
+
+  /* Escala Slate Text */
+  --color-slate-50: #e2e2e9;
+  --color-slate-100: #8e8e9c;
+  --color-slate-200: #5f5f70;
+  --color-slate-300: #424250;
+  --color-slate-400: #2b2c34;
+  --color-slate-500: #1c1c22;
+
+  /* Escala Terracota */
+  --color-terracotta-100: #f8d3c8;
+  --color-terracotta-200: #f0a793;
+  --color-terracotta-300: #e07a5f; /* Base */
+  --color-terracotta-400: #b8533b; /* Dark */
+  --color-terracotta-500: #873421;
+
+  /* Escala Latte */
+  --color-latte-100: #fdf3e3;
+  --color-latte-200: #f7deb4;
+  --color-latte-300: #f2cc8f; /* Base */
+  --color-latte-400: #dda85b; /* Dark */
+  --color-latte-500: #b57d33;
+
+  /* Escala Soft Cacao */
+  --color-cacao-100: #dfc2c5;
+  --color-cacao-200: #ac8085;
+  --color-cacao-300: #684549; /* Base */
+  --color-cacao-400: #4c2b2e;
+  --color-cacao-500: #301618; /* Dark */
+
+  /* Estados de Cocina / KDS */
+  --color-status-pendiente: #5e9adf;
+  --color-status-preparando: #f2cc8f;
+  --color-status-listo: #7cbf9e;
+  --color-status-urgente: #e56b6b;
+
+  /* Estados de Mesas / Recepción */
+  --color-table-libre: #7cbf9e;
+  --color-table-decidiendo: #f4a981;
+  --color-table-esperando: #e56b6b;
+  --color-table-servido: #649fe3;
+  --color-table-cuenta: #9c8ed3;
+  --color-table-limpiando: #d5d5d5;
+  --color-table-reservada: #f2cc8f;
+
+  /* Estados de Botones Deshabilitados */
+  --color-btn-disabled-bg: #d5d4de;
+  --color-btn-disabled-text: #8e8e9c;
 }
