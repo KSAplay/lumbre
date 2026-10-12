@@ -39,6 +39,7 @@
   --color-latte-300: #f2cc8f; /* Base */
   --color-latte-400: #dda85b; /* Dark */
   --color-latte-500: #b57d33;
+  --color-note-line: #d2bb99;
 
   /* Escala Soft Cacao */
   --color-cacao-100: #dfc2c5;
@@ -59,10 +60,119 @@
   --color-table-esperando: #e56b6b;
   --color-table-servido: #649fe3;
   --color-table-cuenta: #9c8ed3;
+  --color-table-cuenta-soft: #b8aedc;
   --color-table-limpiando: #d5d5d5;
   --color-table-reservada: #f2cc8f;
 
   /* Estados de Botones Deshabilitados */
   --color-btn-disabled-bg: #d5d4de;
   --color-btn-disabled-text: #8e8e9c;
+
+  /* Toast */
+  --color-toast-latte: #b57d33;
+  --color-toast-latte-soft: #fdf3e3;
+  --color-toast-terracotta: #b8533b;
+  --color-toast-terracotta-soft: #f8d3c8;
+  --color-toast-cacao: #684549;
+  --color-toast-cacao-soft: #dfc2c5;
+  --color-toast-green: #4d8b6f;
+  --color-toast-green-soft: #ebf3ee;
+  --color-toast-red: #b83e3e;
+  --color-toast-red-soft: #fbf0f0;
+  --color-toast-blue: #2b75c9;
+  --color-toast-blue-soft: #eff5fc;
+  --color-toast-purple: #6d5db3;
+  --color-toast-purple-soft: #f3f1f9;
+
+  /* Animación de títulos largos en carta */
+  --animate-dish-marquee: dish-marquee 7s ease-in-out infinite;
+
+  /* Toast: entra frenando, sale acelerando */
+  --animate-toast-in-top: toast-in-top 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-toast-in-bottom: toast-in-bottom 380ms
+    cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-toast-out-top: toast-out-top 280ms cubic-bezier(0.4, 0, 1, 1) both;
+  --animate-toast-out-bottom: toast-out-bottom 280ms cubic-bezier(0.4, 0, 1, 1)
+    both;
+  --animate-toast-dismiss-top: toast-dismiss-top 300ms
+    cubic-bezier(0.4, 0, 1, 1) both;
+  --animate-toast-dismiss-bottom: toast-dismiss-bottom 300ms
+    cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+@keyframes dish-marquee {
+  0%,
+  18% {
+    transform: translateX(0);
+  }
+  45%,
+  55% {
+    transform: translateX(calc(-1 * var(--marquee-distance, 0px)));
+  }
+  82%,
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes toast-in-top {
+  from {
+    transform: translateY(calc(-100% - 1.25rem));
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes toast-in-bottom {
+  from {
+    transform: translateY(calc(100% + 1.25rem));
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes toast-out-top {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(calc(-100% - 1.25rem));
+  }
+}
+
+@keyframes toast-out-bottom {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(calc(100% + 1.25rem));
+  }
+}
+
+@keyframes toast-dismiss-top {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(calc(-100% - 1.25rem));
+    opacity: 0;
+  }
+}
+
+@keyframes toast-dismiss-bottom {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(calc(100% + 1.25rem));
+    opacity: 0;
+  }
 }
