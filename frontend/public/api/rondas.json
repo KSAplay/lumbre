@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "id": "order-1001",
+  "number": 1,
+  "status": "por_confirmar",
+  "message": "Ronda enviada a cocina"
+}

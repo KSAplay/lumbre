@@ -11,7 +11,7 @@ export interface DishOption {
 }
 
 export interface Dish {
-  id: string
+  id: number
   name: string
   price: number
   category: CategoryId
