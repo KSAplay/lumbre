@@ -19,7 +19,7 @@ export type OrderStatus =
   | "en_cocina"
   | "servido"
   | "pagado"
-  | "incidencia";
+  | "cancelado";
 
 export type SentOrder = {
   id: string;
@@ -101,8 +101,8 @@ const STATUS_META: Record<
     icon: HandCoins,
     colorClass: "text-table-cuenta",
   },
-  incidencia: {
-    label: "Incidencia",
+  cancelado: {
+    label: "Cancelado",
     icon: CircleAlert,
     colorClass: "text-status-urgente",
   },
@@ -113,7 +113,7 @@ const STATUS_CYCLE: OrderStatus[] = [
   "en_cocina",
   "servido",
   "pagado",
-  "incidencia",
+  "cancelado",
 ];
 
 export const OrdersHistorySheet = ({
@@ -285,7 +285,7 @@ export const OrdersHistorySheet = ({
       >
         <ReceiptEdge position="top" />
 
-        <div className="flex max-h-[min(58dvh,480px)] flex-col overflow-hidden bg-canvas-white">
+        <div className="flex max-h-[min(65dvh,520px)] flex-col overflow-hidden bg-canvas-white">
           {/* Cabecera */}
           <div className="flex shrink-0 items-center justify-between gap-3 px-5 pt-4 pb-3">
             <h2
