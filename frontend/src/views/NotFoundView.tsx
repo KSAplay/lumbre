@@ -1,33 +1,32 @@
-import { Link } from "react-router";
-import { UtensilsCrossed, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router";
+import { ArrowLeft, MapPinOff } from "lucide-react";
 
-// Diseño temporal para la vista de 404
-// TODO: Crear una vista de 404 personalizada
 export const NotFoundView = () => {
-  return (
-    <div className="min-h-screen bg-canvas-white flex flex-col items-center justify-center p-6 text-center font-sans">
-      <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mb-6 shadow-sm">
-        <UtensilsCrossed className="w-8 h-8" />
-      </div>
+  const navigate = useNavigate();
 
-      <h1 className="text-4xl font-extrabold text-slate-800 tracking-tight mb-2">
-        404
+  return (
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-white px-6 py-10 font-sans text-center">
+      <MapPinOff
+        className="mb-8 size-20 text-terracotta-400 md:size-24"
+        strokeWidth={1.5}
+      />
+
+      <h1 className="mb-3 text-2xl font-bold tracking-tight text-text-main md:text-3xl">
+        Página no encontrada
       </h1>
-      <h2 className="text-xl font-bold text-slate-700 mb-3">
-        Página o mesa no encontrada
-      </h2>
-      <p className="text-slate-500 max-w-sm mb-8 text-sm leading-relaxed">
-        El enlace al que intentas acceder no existe o el código QR de la mesa no
-        es válido.
+      <p className="mb-9 max-w-sm text-sm leading-relaxed text-text-muted md:text-base">
+        Esta ruta no existe. Si eres cliente, escanea de nuevo el QR de tu mesa.
+        Si formas parte del equipo, comprueba la dirección del panel.
       </p>
 
-      <Link
-        to="/"
-        className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white font-semibold px-5 py-2.5 rounded-xl transition-colors text-sm shadow-md"
+      <button
+        type="button"
+        onClick={() => navigate(-1)}
+        className="cursor-pointer inline-flex items-center gap-2 rounded-lg bg-terracotta-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-terracotta-500 active:scale-[0.98]"
       >
-        <ArrowLeft className="w-4 h-4" />
-        Volver al inicio
-      </Link>
+        <ArrowLeft className="size-4" />
+        Volver atrás
+      </button>
     </div>
   );
 };
