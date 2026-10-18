@@ -121,21 +121,25 @@ export const Toast = ({
       className={`pointer-events-auto relative flex overflow-hidden rounded-[10px] shadow-md ${styles.soft} ${styles.strong} ${motionClass}`}
       onAnimationEnd={handleAnimationEnd}
     >
+      {/* Barra de color */}
       <div
         className={`w-1.5 shrink-0 self-stretch ${styles.bar}`}
         aria-hidden
       />
 
+      {/* Contenido del toast */}
       <div className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5">
         {icon && <span className="shrink-0">{icon}</span>}
         <p className="min-w-0 flex-1 text-[13px] font-semibold leading-snug">
           {message}
         </p>
+
+        {/* Botón de cerrar */}
         <button
           type="button"
           aria-label="Cerrar notificación"
           onClick={() => setExitMode("dismiss")}
-          className="shrink-0 rounded-md p-0.5 transition-transform active:scale-90"
+          className="shrink-0 rounded-md p-0.5 transition-transform active:scale-90 cursor-pointer"
         >
           <X className="size-4" strokeWidth={2.5} />
         </button>

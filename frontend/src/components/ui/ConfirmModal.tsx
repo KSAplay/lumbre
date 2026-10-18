@@ -23,24 +23,21 @@ const ANIMATION_MS = 200;
 
 const toneStyles: Record<
   ConfirmModalTone,
-  { confirm: string; cancel: string; divider: string; icon: string }
+  { confirm: string; cancel: string; icon: string }
 > = {
   cacao: {
     confirm: "bg-cacao-300 text-white",
     cancel: "bg-cacao-100 text-cacao-300",
-    divider: "border-cacao-200",
     icon: "text-cacao-300",
   },
   terracotta: {
     confirm: "bg-terracotta-400 text-white",
     cancel: "bg-terracotta-100 text-terracotta-400",
-    divider: "border-terracotta-200",
     icon: "text-terracotta-400",
   },
   purple: {
     confirm: "bg-table-cuenta text-white",
     cancel: "bg-toast-purple-soft text-toast-purple",
-    divider: "border-table-cuenta/30",
     icon: "text-toast-purple",
   },
 };
@@ -120,7 +117,7 @@ export const ConfirmModal = ({
         aria-modal="true"
         aria-labelledby="confirm-modal-title"
         aria-describedby="confirm-modal-description"
-        className={`relative z-10 w-full max-w-sm overflow-hidden rounded-[14px] bg-canvas-white shadow-lg transition-[opacity,transform] ease-out ${
+        className={`relative z-10 w-full max-w-xs overflow-hidden rounded-[14px] bg-canvas-white shadow-lg transition-[opacity,transform] ease-out ${
           entered ? "scale-100 opacity-100" : "scale-95 opacity-0"
         }`}
         style={{ transitionDuration: `${ANIMATION_MS}ms` }}
@@ -146,11 +143,11 @@ export const ConfirmModal = ({
           </p>
         </div>
 
-        <div className={`flex border-t ${styles.divider}`}>
+        <div className="flex">
           <button
             type="button"
             onClick={onCancel}
-            className={`flex flex-1 items-center justify-center px-3 py-3 text-[13px] font-bold ${styles.cancel}`}
+            className={`flex flex-1 items-center justify-center border-0 px-3 py-3 text-[13px] font-bold ${styles.cancel}`}
           >
             <span className="inline-block transition-transform active:scale-95">
               {cancelLabel}
@@ -159,7 +156,7 @@ export const ConfirmModal = ({
           <button
             type="button"
             onClick={onConfirm}
-            className={`flex flex-1 items-center justify-center px-3 py-3 text-[13px] font-bold ${styles.confirm}`}
+            className={`flex flex-1 items-center justify-center border-0 px-3 py-3 text-[13px] font-bold ${styles.confirm}`}
           >
             <span className="inline-block transition-transform active:scale-95">
               {confirmLabel}
