@@ -87,6 +87,9 @@
   /* Animación de títulos largos en carta */
   --animate-dish-marquee: dish-marquee 7s ease-in-out infinite;
 
+  /* PIN incorrecto en login */
+  --animate-pin-shake: pin-shake 420ms ease-in-out;
+
   /* Toast: entra frenando, sale acelerando */
   --animate-toast-in-top: toast-in-top 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-toast-in-bottom: toast-in-bottom 380ms
@@ -112,6 +115,25 @@
   82%,
   100% {
     transform: translateX(0);
+  }
+}
+
+@keyframes pin-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(6px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(4px);
   }
 }
 

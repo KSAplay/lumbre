@@ -5,6 +5,7 @@ import { AdminDashboardView } from "./views/backoffice/AdminDashboardView";
 import { WaiterFloorMapView } from "./views/waiter/WaiterFloorMapView";
 import { ReceptionDashboardView } from "./views/reception/ReceptionDashboardView";
 import { KitchenKDSView } from "./views/kitchen/KitchenKDSView";
+import { LoginView } from "./views/login/LoginView";
 import { NotFoundView } from "./views/NotFoundView";
 
 export default function App() {
@@ -12,6 +13,8 @@ export default function App() {
     <ToastProvider>
       <BrowserRouter>
         <Routes>
+          <Route path="/" element={<LoginView />} />
+          <Route path="/login" element={<LoginView />} />
           <Route path="/mesa/:tableId" element={<CustomerMenuView />} />
           <Route path="/admin" element={<AdminDashboardView />} />
           <Route path="/camarero" element={<WaiterFloorMapView />} />
