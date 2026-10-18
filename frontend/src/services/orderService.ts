@@ -8,7 +8,7 @@ import type { Category, Dish } from '../types/menu'
  * Si entras a la app por IP de red (vite --host), usa mejor '/api'
  * para evitar CORS.
  */
-const IP = '192.168.1.17'; /* temporal */
+const IP = '192.168.1.16'; /* temporal */
 const PORT = 5173;
 const API_BASE = `http://${IP}:${PORT}/api`;
 
