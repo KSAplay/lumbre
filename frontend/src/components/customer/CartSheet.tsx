@@ -417,7 +417,7 @@ export const CartSheet = ({
             >
               Tu Pedido
             </h1>
-            <span className="shrink-0 rounded-full border bg-cacao-300 px-3 py-1 text-[12px] font-bold text-white md:px-4 md:text-[14px]">
+            <span className="shrink-0 rounded-full bg-cacao-300 px-3 py-1 text-[12px] font-bold text-white md:px-4 md:text-[14px]">
               {tableLabel}
             </span>
           </div>

@@ -314,206 +314,207 @@ export const CustomerMenuView = () => {
   ];
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-canvas-dim font-sans text-text-main lg:p-6">
-      {/* Marco: pantalla completa en móvil/tablet; en desktop se limita al tamaño tablet */}
-      <div className="relative flex h-dvh w-full flex-col overflow-hidden bg-canvas lg:h-[min(90dvh,1024px)] lg:w-full lg:max-w-3xl lg:rounded-2xl lg:shadow-xl">
-        <div className="mx-auto flex h-full w-full flex-col gap-4 p-5 md:mx-auto md:max-w-2xl md:gap-5 md:px-8 md:py-6 lg:max-w-none lg:px-8">
-          {/* Header */}
-          <header className="flex shrink-0 items-center justify-between gap-3">
-            <h1 className="text-xl font-bold text-text-main md:text-[18px]">
-              Menú
-            </h1>
-            <div className="flex items-center gap-2">
-              <span className="rounded-full border bg-cacao-300 px-3 py-1 text-[13px] font-bold text-white md:px-4 md:text-[14px]">
-                {mesaLabel}
-              </span>
-              <button
-                type="button"
-                aria-label={
-                  isFullscreen
-                    ? "Salir de pantalla completa"
-                    : "Pantalla completa"
-                }
-                onClick={() => void toggleMenuFullscreen()}
-                className="bg-transparent p-0 text-text-main"
-              >
-                {isFullscreen ? (
-                  <Minimize
-                    className="size-5 transition-transform duration-150 ease-out active:scale-75 md:size-5.5"
-                    strokeWidth={2.5}
-                  />
-                ) : (
-                  <Maximize
-                    className="size-5 transition-transform duration-150 ease-out active:scale-75 md:size-5.5"
-                    strokeWidth={2.5}
-                  />
-                )}
-              </button>
-            </div>
-          </header>
-
-          {/* Buscador */}
-          <div className="relative w-full shrink-0">
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar..."
-              className="w-full rounded-full border-0 bg-canvas-white py-3 pr-11 pl-4 text-sm text-text-main shadow-sm placeholder:text-text-muted outline-none md:py-3.5 md:text-base"
-            />
-            <Search
-              className="pointer-events-none absolute top-1/2 right-4 size-5 -translate-y-1/2 text-text-muted"
-              aria-hidden
-            />
-          </div>
-
-          {/* Categorías */}
-          <div
-            className="flex shrink-0 gap-2 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-none] [&::-webkit-scrollbar]:hidden"
-            role="tablist"
-            aria-label="Categorías"
-          >
-            {menuLoading
-              ? Array.from({ length: 5 }, (_, i) => (
-                  <div
-                    key={i}
-                    className={`h-7 shrink-0 animate-pulse rounded-full bg-canvas-white/80 shadow-sm md:h-8 ${
-                      i === 0
-                        ? "w-9"
-                        : i === 1
-                          ? "w-20"
-                          : i === 2
-                            ? "w-24"
-                            : "w-16"
-                    }`}
-                    aria-hidden
-                  />
-                ))
-              : categoryTabs.map((tab) => {
-                  const isActive = selectedCategory === tab.id;
-
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={isActive}
-                      aria-label={tab.ariaLabel}
-                      onClick={() => setSelectedCategory(tab.id)}
-                      className={`h-7 shrink-0 rounded-full text-[13px] font-bold whitespace-nowrap shadow-sm transition-transform duration-150 ease-out active:scale-95 md:h-8 md:text-[14px] ${
-                        tab.id === "ALL" ? "px-2.5" : "px-4"
-                      } ${
-                        isActive
-                          ? "bg-latte-400 text-white"
-                          : "bg-canvas-white text-text-main"
-                      }`}
-                    >
-                      {tab.id === "ALL" ? (
-                        <Menu className="size-5" strokeWidth={2.6} />
-                      ) : (
-                        tab.label
-                      )}
-                    </button>
-                  );
-                })}
-          </div>
-
-          {/* Lista de platos */}
-          <section
-            className="min-h-0 flex-1 overflow-y-auto [-ms-overflow-style:none] [scrollbar-none] [&::-webkit-scrollbar]:hidden"
-            aria-busy={menuLoading}
-          >
-            {menuLoading ? (
-              <DishListSkeleton />
-            ) : menuError ? (
-              <MenuEmptyState
-                title="No se pudo cargar la carta"
-                description="Revisa tu conexión e inténtalo de nuevo."
-              />
-            ) : dishes.length === 0 ? (
-              <MenuEmptyState
-                title="No hay platos disponibles"
-                description="La carta de esta mesa está vacía por ahora."
-              />
-            ) : dishesByCategory.length === 0 ? (
-              <MenuEmptyState
-                title="Sin resultados"
-                description="No hay platos que coincidan con tu búsqueda."
-              />
-            ) : (
-              <div className="flex flex-col gap-4 pb-20">
-                {dishesByCategory.map(({ category, dishes: groupDishes }) => (
-                  <div key={category.id} className="flex flex-col gap-3">
-                    <h2 className="text-base font-bold text-text-main md:text-lg">
-                      {category.label}
-                    </h2>
-
-                    <ul className="mb-4 flex flex-col gap-3">
-                      {groupDishes.map((dish) => (
-                        <DishCard
-                          key={dish.id}
-                          dish={dish}
-                          quantity={
-                            cartItems.find((item) => item.dishId === dish.id)
-                              ?.quantity ?? 0
-                          }
-                          onAdd={() => addDish(dish)}
-                          onRemove={() => removeDish(dish.id)}
-                        />
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
-
-        {/* Botones flotantes (apilados en vertical; el pedido queda abajo) */}
-        <div className="absolute right-5 bottom-5 z-30 flex flex-col-reverse items-end gap-3 md:right-8 md:bottom-6">
-          <button
-            type="button"
-            aria-label="Ver tu pedido"
-            onClick={openCart}
-            className={`relative flex size-13.75 items-center justify-center rounded-full bg-terracotta-400 text-white shadow-md transition-all duration-150 ${
-              fabPressed ? "scale-90 bg-terracotta-500 shadow-sm" : "scale-100"
-            }`}
-          >
-            <ShoppingBag
-              className={`size-8 transition-transform duration-150 ${
-                fabPressed ? "scale-90" : "scale-100"
-              }`}
-              strokeWidth={1.8}
-            />
-            {cartCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 flex size-5 items-center justify-center rounded-full bg-canvas-white text-[11px] font-black text-terracotta-400">
-                {cartCount > 99 ? "99+" : cartCount}
-              </span>
-            )}
-          </button>
-
-          {sentOrders.length > 0 && (
+    <div className="flex min-h-dvh items-center justify-center bg-terracotta-300 font-sans text-text-main xl:bg-white xl:p-6">
+      <div className="relative flex h-dvh w-full flex-col overflow-hidden bg-terracotta-300 xl:h-[min(90dvh,1024px)] xl:w-full xl:max-w-3xl xl:rounded-2xl xl:shadow-xl">
+        {/* Cabecera */}
+        <header className="flex shrink-0 items-center justify-between gap-3 px-5 pt-4 pb-3 text-white md:px-8 md:pt-6">
+          <h1 className="text-xl font-bold md:text-[18px]">Menú</h1>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-terracotta-500 px-3 py-1 text-[13px] font-bold text-white md:px-4 md:text-[14px]">
+              {mesaLabel}
+            </span>
             <button
               type="button"
-              aria-label="Ver pedidos realizados"
-              onClick={openOrders}
-              className={`relative flex size-13.75 items-center justify-center rounded-full bg-canvas-white text-terracotta-400 shadow-md transition-all duration-150 ${
-                ordersFabPressed
-                  ? "scale-90 bg-canvas-muted shadow-sm"
+              aria-label={
+                isFullscreen
+                  ? "Salir de pantalla completa"
+                  : "Pantalla completa"
+              }
+              onClick={() => void toggleMenuFullscreen()}
+              className="bg-transparent p-0 text-white cursor-pointer"
+            >
+              {isFullscreen ? (
+                <Minimize
+                  className="size-5 transition-transform duration-150 ease-out active:scale-75 md:size-5.5"
+                  strokeWidth={2.5}
+                />
+              ) : (
+                <Maximize
+                  className="size-5 transition-transform duration-150 ease-out active:scale-75 md:size-5.5"
+                  strokeWidth={2.5}
+                />
+              )}
+            </button>
+          </div>
+        </header>
+
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-[1.75rem] bg-canvas shadow-[0_-8px_24px_rgba(43,44,52,0.08)]">
+          <div className="mx-auto flex h-full w-full flex-col gap-4 p-5 md:mx-auto md:max-w-2xl md:gap-5 md:px-8 md:py-6 xl:max-w-none xl:px-8">
+            {/* Buscador */}
+            <div className="relative w-full shrink-0">
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar..."
+                className="w-full rounded-full border-0 bg-canvas-white py-3 pr-11 pl-4 text-sm text-text-main shadow-sm placeholder:text-text-muted outline-none md:py-3.5 md:text-base"
+              />
+              <Search
+                className="pointer-events-none absolute top-1/2 right-4 size-5 -translate-y-1/2 text-text-muted"
+                aria-hidden
+              />
+            </div>
+
+            {/* Categorías */}
+            <div
+              className="flex shrink-0 gap-2 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-none] [&::-webkit-scrollbar]:hidden"
+              role="tablist"
+              aria-label="Categorías"
+            >
+              {menuLoading
+                ? Array.from({ length: 5 }, (_, i) => (
+                    <div
+                      key={i}
+                      className={`h-7 shrink-0 animate-pulse rounded-full bg-canvas-white/80 shadow-sm md:h-8 ${
+                        i === 0
+                          ? "w-9"
+                          : i === 1
+                            ? "w-20"
+                            : i === 2
+                              ? "w-24"
+                              : "w-16"
+                      }`}
+                      aria-hidden
+                    />
+                  ))
+                : categoryTabs.map((tab) => {
+                    const isActive = selectedCategory === tab.id;
+
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={isActive}
+                        aria-label={tab.ariaLabel}
+                        onClick={() => setSelectedCategory(tab.id)}
+                        className={`h-7 shrink-0 rounded-full text-[13px] font-bold whitespace-nowrap shadow-sm transition-transform duration-150 ease-out active:scale-95 md:h-8 md:text-[14px] cursor-pointer ${
+                          tab.id === "ALL" ? "px-2.5" : "px-4"
+                        } ${
+                          isActive
+                            ? "bg-latte-400 text-white"
+                            : "bg-canvas-white text-text-main"
+                        }`}
+                      >
+                        {tab.id === "ALL" ? (
+                          <Menu className="size-5" strokeWidth={2.6} />
+                        ) : (
+                          tab.label
+                        )}
+                      </button>
+                    );
+                  })}
+            </div>
+
+            {/* Lista de platos */}
+            <section
+              className="min-h-0 flex-1 overflow-y-auto [-ms-overflow-style:none] [scrollbar-none] [&::-webkit-scrollbar]:hidden"
+              aria-busy={menuLoading}
+            >
+              {menuLoading ? (
+                <DishListSkeleton />
+              ) : menuError ? (
+                <MenuEmptyState
+                  title="No se pudo cargar la carta"
+                  description="Revisa tu conexión e inténtalo de nuevo."
+                />
+              ) : dishes.length === 0 ? (
+                <MenuEmptyState
+                  title="No hay platos disponibles"
+                  description="La carta de esta mesa está vacía por ahora."
+                />
+              ) : dishesByCategory.length === 0 ? (
+                <MenuEmptyState
+                  title="Sin resultados"
+                  description="No hay platos que coincidan con tu búsqueda."
+                />
+              ) : (
+                <div className="flex flex-col gap-4 pb-20">
+                  {dishesByCategory.map(({ category, dishes: groupDishes }) => (
+                    <div key={category.id} className="flex flex-col gap-3">
+                      <h2 className="text-base font-bold text-text-main md:text-lg">
+                        {category.label}
+                      </h2>
+
+                      <ul className="mb-4 flex flex-col gap-3">
+                        {groupDishes.map((dish) => (
+                          <DishCard
+                            key={dish.id}
+                            dish={dish}
+                            quantity={
+                              cartItems.find((item) => item.dishId === dish.id)
+                                ?.quantity ?? 0
+                            }
+                            onAdd={() => addDish(dish)}
+                            onRemove={() => removeDish(dish.id)}
+                          />
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+
+          {/* Botones flotantes */}
+          <div className="absolute right-5 bottom-5 z-30 flex flex-col-reverse items-end gap-3 md:right-8 md:bottom-6">
+            <button
+              type="button"
+              aria-label="Ver tu pedido"
+              onClick={openCart}
+              className={`relative flex size-13.75 items-center justify-center rounded-full bg-terracotta-400 text-white shadow-md transition-all duration-150 ${
+                fabPressed
+                  ? "scale-90 bg-terracotta-500 shadow-sm"
                   : "scale-100"
               }`}
             >
-              <ReceiptText
+              <ShoppingBag
                 className={`size-8 transition-transform duration-150 ${
-                  ordersFabPressed ? "scale-90" : "scale-100"
+                  fabPressed ? "scale-90" : "scale-100"
                 }`}
                 strokeWidth={1.8}
               />
-              <span className="absolute -top-0.5 -right-0.5 flex size-5 items-center justify-center rounded-full bg-terracotta-400 text-[11px] font-black text-white">
-                {sentOrders.length > 99 ? "99+" : sentOrders.length}
-              </span>
+              {cartCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex size-5 items-center justify-center rounded-full bg-canvas-white text-[11px] font-black text-terracotta-400">
+                  {cartCount > 99 ? "99+" : cartCount}
+                </span>
+              )}
             </button>
-          )}
+
+            {sentOrders.length > 0 && (
+              <button
+                type="button"
+                aria-label="Ver pedidos realizados"
+                onClick={openOrders}
+                className={`relative flex size-13.75 items-center justify-center rounded-full bg-canvas-white text-terracotta-400 shadow-md transition-all duration-150 ${
+                  ordersFabPressed
+                    ? "scale-90 bg-canvas-muted shadow-sm"
+                    : "scale-100"
+                }`}
+              >
+                <ReceiptText
+                  className={`size-8 transition-transform duration-150 ${
+                    ordersFabPressed ? "scale-90" : "scale-100"
+                  }`}
+                  strokeWidth={1.8}
+                />
+                <span className="absolute -top-0.5 -right-0.5 flex size-5 items-center justify-center rounded-full bg-terracotta-400 text-[11px] font-black text-white">
+                  {sentOrders.length > 99 ? "99+" : sentOrders.length}
+                </span>
+              </button>
+            )}
+          </div>
         </div>
 
         <CartSheet
@@ -668,23 +669,25 @@ const DishCard = ({
       )}
 
       <div className="flex h-full w-7.5 shrink-0 flex-col">
+        {/* Botón de añadir */}
         <button
           type="button"
           aria-label={`Añadir ${dish.name}`}
           onClick={onAdd}
-          className={`group flex w-full items-center justify-center bg-terracotta-300 text-white ${
+          className={`group flex w-full items-center justify-center bg-terracotta-300 text-white cursor-pointer ${
             hasQuantity ? "h-1/2" : "h-full"
           }`}
         >
           <Plus className="size-5 stroke-3 transition-transform group-active:scale-75" />
         </button>
 
+        {/* Botón de quitar */}
         {hasQuantity && (
           <button
             type="button"
             aria-label={`Quitar ${dish.name}`}
             onClick={onRemove}
-            className="group flex h-1/2 w-full items-center justify-center bg-terracotta-400 text-white"
+            className="group flex h-1/2 w-full items-center justify-center bg-terracotta-400 text-white cursor-pointer"
           >
             <Minus className="size-5 stroke-3 transition-transform group-active:scale-75" />
           </button>
