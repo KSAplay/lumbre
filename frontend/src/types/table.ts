@@ -1,45 +1,56 @@
-// Formas disponibles para las mesas en el editor
-export type TableShape = 'square' | 'circle' | 'rectangle';
+/** Formas visuales de mesa en el mapa de sala */
+export type TableShape = "square" | "circle" | "rectangle";
 
-// Identificadores de zonas
-export type ZoneId = 'salon' | 'terraza' | 'barra';
+/** Zonas del plano (pestañas de recepción) */
+export type ZoneId = "interior" | "terraza";
 
-// Estados posibles de la mesa en la sala
+/** Estados posibles de la mesa en la sala */
 export type TableStatus =
-  | 'libre'
-  | 'decidiendo'
-  | 'esperando'
-  | 'servido'
-  | 'cuenta'
-  | 'limpiando'
-  | 'reservada';
+  | "libre"
+  | "decidiendo"
+  | "esperando"
+  | "servido"
+  | "cuenta"
+  | "limpiando"
+  | "reservada";
 
-// Coordenadas en la cuadrícula (Snap-to-Grid)
-export interface GridPosition {
-  row: number;
-  col: number;
+/** Posición libre en el plano (porcentaje del contenedor) */
+export interface TablePosition {
+  x: number;
+  y: number;
 }
 
-// Datos completos de un nodo de mesa en el mapa
+/** Reserva mostrada sobre la mesa (estado reservada) */
+export interface TableReservationInfo {
+  guestName: string;
+  time: string;
+}
+
+/** Nodo de mesa en el mapa interactivo */
 export interface TableNodeData {
-  id: string;             // Ej: 'M01'
-  number: number;         // Ej: 1
-  capacity: number;       // Número de sillas (2, 4, 6, etc.)
+  id: string;
+  number: number;
+  capacity: number;
   shape: TableShape;
   zone: ZoneId;
-  position: GridPosition;
+  position: TablePosition;
   status: TableStatus;
-  currentSessionId?: string; // ID de la sesión activa si está ocupada
-  guestCount?: number;    // Personas sentadas actualmente
-  timeInStateMinutes?: number; // Tiempo transcurrido en el estado actual
+  guestCount: number;
+  statusChangedAt: number;
+  currentSessionId?: string;
+  reservation?: TableReservationInfo;
 }
 
-// Estructura de una reserva asignada a una mesa
 export interface Reservation {
   id: string;
   tableId: string;
   guestName: string;
   guestCount: number;
-  time: string;           // Ej: '14:30'
+  time: string;
   notes?: string;
 }
+
+export {
+  ALL_TABLE_STATUSES,
+  TABLE_STATUS_LABELS,
+} from "../constants/tableStatus";
