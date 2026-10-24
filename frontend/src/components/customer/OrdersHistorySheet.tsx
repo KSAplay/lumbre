@@ -1,25 +1,20 @@
 import { useEffect, useRef, useState, type TransitionEvent } from "react";
+import { ConciergeBell, ReceiptEuro, X } from "lucide-react";
 import {
-  CircleAlert,
-  ClipboardClock,
-  ConciergeBell,
-  CookingPot,
-  HandCoins,
-  HandPlatter,
-  ReceiptEuro,
-  X,
-} from "lucide-react";
+  ALL_CUSTOMER_ORDER_STATUSES,
+  CUSTOMER_ORDER_STATUS_ICONS,
+  CUSTOMER_ORDER_STATUS_LABELS,
+  CUSTOMER_ORDER_STATUS_TEXT,
+  type CustomerOrderStatus,
+} from "../../constants/orderStatus";
+import { requestTableBill } from "../../services/orderService";
+import { formatAppTime } from "../../utils/dateTime";
 import { ConfirmModal } from "../ui/ConfirmModal";
 import { useToast } from "../ui/useToast";
-import { requestTableBill } from "../../services/orderService";
 import type { CartLine } from "./CartSheet";
 
-export type OrderStatus =
-  | "por_confirmar"
-  | "en_cocina"
-  | "servido"
-  | "pagado"
-  | "cancelado";
+/** @deprecated Preferir CustomerOrderStatus de constants/orderStatus */
+export type OrderStatus = CustomerOrderStatus;
 
 export type SentOrder = {
   id: string;
@@ -41,80 +36,13 @@ type OrdersHistorySheetProps = {
 
 const ANIMATION_MS = 220;
 
-// true = 12h (8:42 PM) · false = 24h (20:42)
-const USE_12H_FORMAT = false;
-
 const formatPrice = (price: number) =>
   price.toLocaleString("es-ES", {
     style: "currency",
     currency: "EUR",
   });
 
-const formatOrderTime = (date: Date) => {
-  // Formato 12h — activar con USE_12H_FORMAT = true
-  // return date.toLocaleTimeString("en-US", {
-  //   hour: "numeric",
-  //   minute: "2-digit",
-  //   hour12: true,
-  // });
-
-  if (USE_12H_FORMAT) {
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-  }
-
-  return date.toLocaleTimeString("es-ES", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-};
-
-const STATUS_META: Record<
-  OrderStatus,
-  {
-    label: string;
-    icon: typeof ClipboardClock;
-    colorClass: string;
-  }
-> = {
-  por_confirmar: {
-    label: "Por confirmar",
-    icon: ClipboardClock,
-    colorClass: "text-status-pendiente",
-  },
-  en_cocina: {
-    label: "En cocina",
-    icon: CookingPot,
-    colorClass: "text-status-preparando",
-  },
-  servido: {
-    label: "Servido",
-    icon: HandPlatter,
-    colorClass: "text-status-listo",
-  },
-  pagado: {
-    label: "Pagado",
-    icon: HandCoins,
-    colorClass: "text-table-cuenta",
-  },
-  cancelado: {
-    label: "Cancelado",
-    icon: CircleAlert,
-    colorClass: "text-status-urgente",
-  },
-};
-
-const STATUS_CYCLE: OrderStatus[] = [
-  "por_confirmar",
-  "en_cocina",
-  "servido",
-  "pagado",
-  "cancelado",
-];
+const STATUS_CYCLE = ALL_CUSTOMER_ORDER_STATUSES;
 
 export const OrdersHistorySheet = ({
   open,
@@ -315,8 +243,7 @@ export const OrdersHistorySheet = ({
             ) : (
               <ul className="flex flex-col">
                 {displayOrders.map((order, index) => {
-                  const meta = STATUS_META[order.status];
-                  const StatusIcon = meta.icon;
+                  const StatusIcon = CUSTOMER_ORDER_STATUS_ICONS[order.status];
                   const isLast = index === displayOrders.length - 1;
 
                   return (
@@ -328,8 +255,7 @@ export const OrdersHistorySheet = ({
                     >
                       <div className="flex items-start justify-between gap-2">
                         <h3 className="min-w-0 text-[13px] font-semibold text-text-main">
-                          Pedido {order.number} -{" "}
-                          {formatOrderTime(order.sentAt)}
+                          Pedido {order.number} - {formatAppTime(order.sentAt)}
                         </h3>
                         {/* TODO: temporal — quitar onClick al recibir estados del servidor */}
                         <button
@@ -340,10 +266,10 @@ export const OrdersHistorySheet = ({
                           className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-50 bg-canvas-muted px-2.5 py-0.5 text-[11px] font-bold text-text-main transition-transform active:scale-95"
                         >
                           <StatusIcon
-                            className={`size-3.5 ${meta.colorClass}`}
+                            className={`size-3.5 ${CUSTOMER_ORDER_STATUS_TEXT[order.status]}`}
                             strokeWidth={2.4}
                           />
-                          {meta.label}
+                          {CUSTOMER_ORDER_STATUS_LABELS[order.status]}
                         </button>
                       </div>
 
