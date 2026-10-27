@@ -400,14 +400,14 @@ export const CartSheet = ({
       >
         {/* Cabecera (zona de arrastre) */}
         <div
-          className="flex shrink-0 touch-none flex-col px-5 pt-3 pb-3 md:px-7"
+          className="flex shrink-0 touch-none flex-col px-5 pt-3 pb-3 md:px-7 cursor-pointer select-none"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
         >
           <div
-            className="mx-auto mb-3 h-1 w-12 rounded-full bg-slate-50"
+            className="mx-auto mb-3 h-1 w-12 rounded-full bg-slate-50 select-none"
             aria-hidden
           />
           <div className="flex items-center justify-between gap-3">

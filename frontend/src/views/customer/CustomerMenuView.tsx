@@ -473,14 +473,14 @@ export const CustomerMenuView = () => {
               type="button"
               aria-label="Ver tu pedido"
               onClick={openCart}
-              className={`relative flex size-13.75 items-center justify-center rounded-full bg-terracotta-400 text-white shadow-md transition-all duration-150 ${
+              className={`cursor-pointer relative flex size-13.75 items-center justify-center rounded-full bg-terracotta-400 text-white shadow-md transition-all duration-150 ${
                 fabPressed
                   ? "scale-90 bg-terracotta-500 shadow-sm"
                   : "scale-100"
               }`}
             >
               <ShoppingBag
-                className={`size-8 transition-transform duration-150 ${
+                className={`size-8 transition-transform ${
                   fabPressed ? "scale-90" : "scale-100"
                 }`}
                 strokeWidth={1.8}
@@ -497,7 +497,7 @@ export const CustomerMenuView = () => {
                 type="button"
                 aria-label="Ver pedidos realizados"
                 onClick={openOrders}
-                className={`relative flex size-13.75 items-center justify-center rounded-full bg-canvas-white text-terracotta-400 shadow-md transition-all duration-150 ${
+                className={`cursor-pointer relative flex size-13.75 items-center justify-center rounded-full bg-canvas-white text-terracotta-400 shadow-md transition-all ${
                   ordersFabPressed
                     ? "scale-90 bg-canvas-muted shadow-sm"
                     : "scale-100"
