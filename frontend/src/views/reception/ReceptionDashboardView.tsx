@@ -1,27 +1,108 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Monitor, Pencil, Plus } from "lucide-react";
+import { BrickWall, Check, Eraser, Monitor, Pencil } from "lucide-react";
 import { FloorTable } from "../../components/reception/FloorTable";
-import { ReceptionSidePanel } from "../../components/reception/ReceptionSidePanel";
+import { FloorWall } from "../../components/reception/FloorWall";
+import {
+  ReceptionSidePanel,
+  type TablePanelActionKey,
+} from "../../components/reception/ReceptionSidePanel";
 import { ReceptionUserMenu } from "../../components/reception/ReceptionUserMenu";
+import { TablePlusIcon } from "../../components/reception/TablePlusIcon";
+import { ConfirmModal } from "../../components/ui/ConfirmModal";
 import { LiveDateTime } from "../../components/ui/LiveDateTime";
 import { StaffShell } from "../../components/ui/StaffShell";
+import { maxGuestsForShape, VIEW_GRID_PX } from "../../constants/floorPlan";
 import { MOCK_TABLES } from "../../data/mockTables";
+import { MOCK_WALLS } from "../../data/mockWalls";
+import { updateTableStatus } from "../../services/tableService";
 import type {
+  FloorSelection,
+  FloorWallData,
   TableNodeData,
+  TableOrientation,
   TableStatus,
   ZoneId,
 } from "../../types/table";
+
+/** Mapa acción del panel → estado destino */
+const ACTION_NEXT_STATUS: Record<TablePanelActionKey, TableStatus> = {
+  seat: "decidiendo",
+  reserve: "reservada",
+  arrive: "decidiendo",
+  "cancel-res": "libre",
+  bill: "cuenta",
+  paid: "limpiando",
+  ready: "libre",
+};
+
+/**
+ * TODO: eliminar este bloque cuando el camarero y el backend actualicen los estados.
+ * Simulación temporal del servicio: cada 10 s la mesa avanza al siguiente estado
+ * (Decidiendo → Esperando → Servido → Cuenta → Limpiando → Libre).
+ */
+const AUTO_STATUS_MS = 10_000;
+
+const AUTO_NEXT_STATUS: Partial<Record<TableStatus, TableStatus>> = {
+  decidiendo: "esperando",
+  esperando: "servido",
+  servido: "cuenta",
+  cuenta: "limpiando",
+  limpiando: "libre",
+};
+
+/**
+ * Avanza al siguiente estado las mesas que llevan 10 s en un estado del servicio.
+ *
+ * Al llegar a Limpiando o Libre se vacían los comensales, igual que con las
+ * acciones manuales del panel.
+ *
+ * @param tables - Mesas del plano, de todas las zonas.
+ * @param nowMs - Instante actual en milisegundos.
+ * @returns El mismo array si ninguna cumple el tiempo; si no, la lista ya avanzada.
+ */
+function advanceReceptionTables(
+  tables: TableNodeData[],
+  nowMs: number,
+): TableNodeData[] {
+  let changed = false;
+  const nextTables = tables.map((table) => {
+    const nextStatus = AUTO_NEXT_STATUS[table.status];
+    if (!nextStatus || nowMs - table.statusChangedAt < AUTO_STATUS_MS) {
+      return table;
+    }
+    changed = true;
+    const clearsGuests = nextStatus === "limpiando" || nextStatus === "libre";
+    return {
+      ...table,
+      status: nextStatus,
+      statusChangedAt: nowMs,
+      guestCount: clearsGuests ? 0 : table.guestCount,
+    };
+  });
+  return changed ? nextTables : tables;
+}
 
 const ZONE_TABS: { id: ZoneId; label: string }[] = [
   { id: "interior", label: "Interior" },
   { id: "terraza", label: "Terraza" },
 ];
 
+function shapeForGuests(zone: ZoneId, guests: number) {
+  if (zone === "terraza") return "circle" as const;
+  return guests >= 5 ? ("rectangle" as const) : ("square" as const);
+}
+
 export const ReceptionDashboardView = () => {
   const [tables, setTables] = useState<TableNodeData[]>(MOCK_TABLES);
+  const [walls, setWalls] = useState<FloorWallData[]>(MOCK_WALLS);
   const [zone, setZone] = useState<ZoneId>("interior");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selection, setSelection] = useState<FloorSelection | null>(null);
   const [editMode, setEditMode] = useState(false);
+  const [appearingIds, setAppearingIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [actionBusy, setActionBusy] = useState(false);
+  const [clearZoneOpen, setClearZoneOpen] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const mapRef = useRef<HTMLDivElement>(null);
   const zoneIndex = ZONE_TABS.findIndex((t) => t.id === zone);
@@ -31,73 +112,158 @@ export const ReceptionDashboardView = () => {
     [tables, zone],
   );
 
-  const selectedTable =
-    tables.find((t) => t.id === selectedId) ?? null;
+  const zoneWalls = useMemo(
+    () => walls.filter((w) => w.zone === zone),
+    [walls, zone],
+  );
 
-  // Tick de reloj para contadores de estado (solo frontend)
+  const selectedTable =
+    selection?.kind === "table"
+      ? (tables.find((t) => t.id === selection.id) ?? null)
+      : null;
+
+  const selectedWall =
+    selection?.kind === "wall"
+      ? (walls.find((w) => w.id === selection.id) ?? null)
+      : null;
+
   useEffect(() => {
-    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    const id = window.setInterval(() => {
+      const now = Date.now();
+      setNowMs(now);
+      // TODO: eliminar junto con advanceReceptionTables al integrar al camarero.
+      setTables((prev) => advanceReceptionTables(prev, now));
+    }, 1000);
     return () => window.clearInterval(id);
   }, []);
 
-  const handleSelect = (id: string) => {
+  const clearSelection = () => setSelection(null);
+
+  const handleSelectTable = (id: string) => {
     if (editMode) {
-      setSelectedId(id);
+      setSelection({ kind: "table", id });
       return;
     }
-    setSelectedId((prev) => (prev === id ? null : id));
+    setSelection((prev) =>
+      prev?.kind === "table" && prev.id === id ? null : { kind: "table", id },
+    );
+  };
+
+  const handleSelectWall = (id: string) => {
+    if (!editMode) return;
+    setSelection({ kind: "wall", id });
   };
 
   const handlePositionChange = (id: string, x: number, y: number) => {
     setTables((prev) =>
-      prev.map((t) =>
-        t.id === id ? { ...t, position: { x, y } } : t,
-      ),
+      prev.map((t) => (t.id === id ? { ...t, position: { x, y } } : t)),
     );
+  };
+
+  const handleWallChange = (id: string, next: Partial<FloorWallData>) => {
+    setWalls((prev) => prev.map((w) => (w.id === id ? { ...w, ...next } : w)));
   };
 
   const handleAddGuest = (tableId: string) => {
     setTables((prev) =>
       prev.map((t) => {
         if (t.id !== tableId) return t;
-        if (t.status !== "libre" || t.guestCount >= t.capacity) return t;
-        return { ...t, guestCount: t.guestCount + 1 };
+        if (t.status !== "libre" && t.status !== "reservada") return t;
+        const current = t.guestCount > 0 ? t.guestCount : t.capacity;
+        if (current >= maxGuestsForShape(t.shape)) return t;
+        const guestCount = current + 1;
+        return {
+          ...t,
+          guestCount,
+          capacity: guestCount,
+          shape: shapeForGuests(t.zone, guestCount),
+        };
       }),
     );
   };
 
-  // TODO: eliminar/sustituir cuando el backend gestione transiciones de estado
-  const handleChangeStatus = (tableId: string, status: TableStatus) => {
+  const handleRemoveGuest = (tableId: string) => {
+    setTables((prev) =>
+      prev.map((t) => {
+        if (t.id !== tableId) return t;
+        if (t.status !== "libre" && t.status !== "reservada") return t;
+        const current = t.guestCount > 0 ? t.guestCount : t.capacity;
+        if (current <= 1) return t;
+        const guestCount = current - 1;
+        return {
+          ...t,
+          guestCount,
+          capacity: guestCount,
+          shape: shapeForGuests(t.zone, guestCount),
+        };
+      }),
+    );
+  };
+
+  const applyLocalStatus = (
+    tableId: string,
+    status: TableStatus,
+    guestCount?: number,
+  ) => {
     setTables((prev) =>
       prev.map((t) => {
         if (t.id !== tableId || t.status === status) return t;
+        const nextGuests =
+          guestCount ??
+          (status === "libre" || status === "limpiando" ? 0 : t.guestCount);
         return {
           ...t,
           status,
           statusChangedAt: Date.now(),
-          guestCount:
-            status === "libre" || status === "limpiando" ? 0 : t.guestCount,
+          guestCount: nextGuests,
+          reservation: status === "reservada" ? t.reservation : undefined,
         };
       }),
     );
   };
 
-  const handleChangeCapacity = (tableId: string, capacity: number) => {
-    const next = Math.min(12, Math.max(1, capacity));
+  const handleTableAction = async (
+    tableId: string,
+    action: TablePanelActionKey,
+  ) => {
+    const table = tables.find((t) => t.id === tableId);
+    if (!table || actionBusy) return;
+
+    const nextStatus = ACTION_NEXT_STATUS[action];
+    let nextGuests = table.guestCount;
+
+    if (action === "seat" || action === "arrive") {
+      nextGuests = table.guestCount > 0 ? table.guestCount : table.capacity;
+    }
+    if (action === "cancel-res" || action === "ready" || action === "paid") {
+      nextGuests = 0;
+    }
+    if (action === "reserve" && nextGuests <= 0) {
+      nextGuests = Math.min(2, table.capacity);
+    }
+
+    setActionBusy(true);
+    try {
+      await updateTableStatus(tableId, {
+        status: nextStatus,
+        guestCount: nextGuests,
+      });
+      applyLocalStatus(tableId, nextStatus, nextGuests);
+    } catch (err) {
+      console.error("No se pudo actualizar el estado de la mesa", err);
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const handleChangeOrientation = (
+    tableId: string,
+    orientation: TableOrientation,
+  ) => {
     setTables((prev) =>
       prev.map((t) => {
-        if (t.id !== tableId) return t;
-        return {
-          ...t,
-          capacity: next,
-          guestCount: Math.min(t.guestCount, next),
-          shape:
-            t.zone === "terraza"
-              ? "circle"
-              : next >= 6
-                ? "rectangle"
-                : "square",
-        };
+        if (t.id !== tableId || t.shape === "circle") return t;
+        return { ...t, orientation };
       }),
     );
   };
@@ -113,22 +279,69 @@ export const ReceptionDashboardView = () => {
       shape: isTerraza ? "circle" : "square",
       zone,
       position: { x: 50, y: 50 },
+      orientation: "horizontal",
       status: "libre",
       guestCount: 0,
       statusChangedAt: Date.now(),
     };
     setTables((prev) => [...prev, newTable]);
-    setSelectedId(newTable.id);
+    setSelection({ kind: "table", id: newTable.id });
+    setAppearingIds((prev) => new Set(prev).add(newTable.id));
+    window.setTimeout(() => {
+      setAppearingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(newTable.id);
+        return next;
+      });
+    }, 400);
+  };
+
+  const handleRemoveTable = (tableId: string) => {
+    setTables((prev) => prev.filter((table) => table.id !== tableId));
+    setSelection((prev) =>
+      prev?.kind === "table" && prev.id === tableId ? null : prev,
+    );
+  };
+
+  const handleRemoveWall = (wallId: string) => {
+    setWalls((prev) => prev.filter((wall) => wall.id !== wallId));
+    setSelection((prev) =>
+      prev?.kind === "wall" && prev.id === wallId ? null : prev,
+    );
+  };
+
+  const handleConfirmClearZone = () => {
+    setTables((prev) => prev.filter((table) => table.zone !== zone));
+    setWalls((prev) => prev.filter((wall) => wall.zone !== zone));
+    clearSelection();
+    setClearZoneOpen(false);
+  };
+
+  const handleAddWall = () => {
+    const newWall: FloorWallData = {
+      id: `W-${zone === "terraza" ? "T" : "I"}${Date.now().toString(36)}`,
+      zone,
+      x: 40,
+      y: 35,
+      width: 18,
+      height: 6,
+      shape: "rectangle",
+      rotation: 0,
+      corners: { nw: "square", ne: "square", se: "square", sw: "square" },
+    };
+    setWalls((prev) => [...prev, newWall]);
+    setSelection({ kind: "wall", id: newWall.id });
   };
 
   const toggleEditMode = () => {
     setEditMode((prev) => {
-      if (!prev) setSelectedId(null);
+      if (!prev) clearSelection();
       return !prev;
     });
   };
 
   return (
+    <>
     <StaffShell
       headerCenter={
         <>
@@ -171,10 +384,19 @@ export const ReceptionDashboardView = () => {
       </div>
 
       <div className="hidden min-h-0 flex-1 md:flex">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col p-5 lg:p-6">
-          <div className="mb-4 flex justify-center">
+        <div
+          className={`flex min-h-0 min-w-0 flex-1 flex-col p-5 transition-colors duration-300 lg:p-6 ${
+            editMode ? "bg-canvas-dim/40" : "bg-transparent"
+          }`}
+        >
+          {/* Pestañas centradas; en edición se desplazan a la izquierda y aparece el título */}
+          <div className="relative mb-4 h-12">
             <div
-              className="relative grid grid-cols-2 rounded-lg bg-canvas-dim/40 p-1"
+              className="absolute top-0 grid grid-cols-2 rounded-lg bg-canvas-dim/40 p-1 transition-[left,transform] duration-300 ease-out"
+              style={{
+                left: editMode ? "0%" : "50%",
+                transform: editMode ? "translateX(0)" : "translateX(-50%)",
+              }}
               role="tablist"
               aria-label="Zona del plano"
             >
@@ -195,7 +417,7 @@ export const ReceptionDashboardView = () => {
                     aria-selected={active}
                     onClick={() => {
                       setZone(tab.id);
-                      setSelectedId(null);
+                      clearSelection();
                     }}
                     className={`relative z-10 min-w-36 cursor-pointer rounded-md px-8 py-2.5 text-sm font-semibold transition-colors duration-200 ${
                       active
@@ -208,33 +430,65 @@ export const ReceptionDashboardView = () => {
                 );
               })}
             </div>
+
+            <h2
+              aria-hidden={!editMode}
+              className={`pointer-events-none absolute top-1/2 right-0 -translate-y-1/2 text-2xl font-black tracking-wide text-slate-300 uppercase transition-opacity duration-300 ease-out ${
+                editMode ? "opacity-100" : "opacity-0"
+              }`}
+            >
+              Modo edición
+            </h2>
           </div>
 
-          <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg bg-canvas-muted ring-1 ring-slate-50/80">
+          <div
+            className={`relative min-h-0 flex-1 overflow-hidden rounded-lg ring-1 ring-slate-50/80 transition-colors duration-300 ${
+              editMode ? "bg-canvas" : "bg-canvas-muted"
+            }`}
+          >
             <div
               ref={mapRef}
               className="relative h-full min-h-80 w-full"
-              onClick={() => setSelectedId(null)}
+              onClick={clearSelection}
               role="application"
               aria-label={`Plano de mesas — ${zone === "interior" ? "Interior" : "Terraza"}`}
             >
-              <div
-                className="pointer-events-none absolute inset-0 opacity-[0.35]"
-                style={{
-                  backgroundImage:
-                    "linear-gradient(to right, var(--color-canvas-dim) 1px, transparent 1px), linear-gradient(to bottom, var(--color-canvas-dim) 1px, transparent 1px)",
-                  backgroundSize: "40px 40px",
-                }}
-              />
+              {editMode && (
+                <div
+                  className="pointer-events-none absolute inset-0 opacity-[0.35]"
+                  style={{
+                    backgroundImage:
+                      "linear-gradient(to right, var(--color-canvas-dim) 1px, transparent 1px), linear-gradient(to bottom, var(--color-canvas-dim) 1px, transparent 1px)",
+                    backgroundSize: `${VIEW_GRID_PX}px ${VIEW_GRID_PX}px`,
+                  }}
+                />
+              )}
+
+              {zoneWalls.map((wall) => (
+                <FloorWall
+                  key={wall.id}
+                  wall={wall}
+                  selected={
+                    selection?.kind === "wall" && selection.id === wall.id
+                  }
+                  editMode={editMode}
+                  onSelect={handleSelectWall}
+                  onChange={handleWallChange}
+                  mapRef={mapRef}
+                />
+              ))}
 
               {zoneTables.map((table) => (
                 <FloorTable
                   key={table.id}
                   table={table}
-                  selected={selectedId === table.id}
+                  selected={
+                    selection?.kind === "table" && selection.id === table.id
+                  }
                   editMode={editMode}
                   nowMs={nowMs}
-                  onSelect={handleSelect}
+                  appearing={appearingIds.has(table.id)}
+                  onSelect={handleSelectTable}
                   onPositionChange={handlePositionChange}
                   mapRef={mapRef}
                 />
@@ -243,15 +497,44 @@ export const ReceptionDashboardView = () => {
 
             <div className="absolute right-5 bottom-5 z-30 flex flex-col items-center gap-3">
               {editMode && (
-                <button
-                  type="button"
-                  onClick={handleAddTable}
-                  className="flex size-14 cursor-pointer items-center justify-center rounded-full bg-canvas-white text-text-main shadow-lg ring-1 ring-slate-50 transition-transform active:scale-90"
-                  aria-label="Añadir mesa"
-                  title="Añadir mesa"
-                >
-                  <Plus className="size-6" strokeWidth={2.5} />
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setClearZoneOpen(true)}
+                    disabled={zoneTables.length === 0 && zoneWalls.length === 0}
+                    className="flex size-14 cursor-pointer items-center justify-center rounded-full bg-terracotta-100 text-toast-red shadow-lg ring-1 ring-terracotta-200 transition-transform active:scale-90 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100"
+                    aria-label="Limpiar zona"
+                    title="Limpiar zona"
+                  >
+                    <Eraser className="size-6" strokeWidth={2} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleAddWall}
+                    className="relative flex size-14 cursor-pointer items-center justify-center rounded-full bg-canvas-white text-text-main shadow-lg ring-1 ring-slate-50 transition-transform active:scale-90"
+                    aria-label="Añadir muro"
+                    title="Añadir muro"
+                  >
+                    <BrickWall className="size-7" strokeWidth={1.75} />
+                    <span className="absolute -top-0.5 -right-0.5 flex size-5.5 items-center justify-center rounded-full bg-terracotta-400 text-sm leading-none font-black text-white">
+                      +
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleAddTable}
+                    className="relative flex size-14 cursor-pointer items-center justify-center rounded-full bg-canvas-white text-text-main shadow-lg ring-1 ring-slate-50 transition-transform active:scale-90"
+                    aria-label="Añadir mesa"
+                    title="Añadir mesa"
+                  >
+                    <TablePlusIcon className="size-7" />
+                    <span className="absolute -top-0.5 -right-0.5 flex size-5.5 items-center justify-center rounded-full bg-terracotta-400 text-sm leading-none font-black text-white">
+                      +
+                    </span>
+                  </button>
+                </>
               )}
 
               <button
@@ -274,30 +557,43 @@ export const ReceptionDashboardView = () => {
                 )}
               </button>
             </div>
-
-            {editMode && (
-              <p className="pointer-events-none absolute top-3 left-1/2 z-30 -translate-x-1/2 rounded-full bg-cacao-300/90 px-3 py-1 text-xs font-semibold text-white shadow-sm">
-                Arrastra las mesas · se alinean a la rejilla
-              </p>
-            )}
           </div>
         </div>
 
         <ReceptionSidePanel
           tables={zoneTables}
           selectedTable={
-            selectedTable && selectedTable.zone === zone
-              ? selectedTable
-              : null
+            selectedTable && selectedTable.zone === zone ? selectedTable : null
+          }
+          selectedWall={
+            selectedWall && selectedWall.zone === zone ? selectedWall : null
           }
           editMode={editMode}
           nowMs={nowMs}
-          onClearSelection={() => setSelectedId(null)}
+          actionBusy={actionBusy}
+          onClearSelection={clearSelection}
           onAddGuest={handleAddGuest}
-          onChangeStatus={handleChangeStatus}
-          onChangeCapacity={handleChangeCapacity}
+          onRemoveGuest={handleRemoveGuest}
+          onTableAction={handleTableAction}
+          onChangeOrientation={handleChangeOrientation}
+          onChangeWall={handleWallChange}
+          onRemoveTable={handleRemoveTable}
+          onRemoveWall={handleRemoveWall}
         />
       </div>
     </StaffShell>
+
+    <ConfirmModal
+      open={clearZoneOpen}
+      tone="terracotta"
+      icon={<Eraser className="size-8" strokeWidth={2} />}
+      title="¿Limpiar la zona?"
+      description={`Se borrarán todas las mesas y todos los muros de ${zone === "interior" ? "Interior" : "Terraza"}.`}
+      confirmLabel="Limpiar"
+      cancelLabel="Cancelar"
+      onCancel={() => setClearZoneOpen(false)}
+      onConfirm={handleConfirmClearZone}
+    />
+    </>
   );
 };

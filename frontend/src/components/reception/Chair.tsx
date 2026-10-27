@@ -1,7 +1,7 @@
 type ChairProps = {
   /** Color del estado (tono oscuro) */
   color: string;
-  /** Trapecio recto (cuadrada / rectangular) */
+  /** Silla recta (cuadrada / rectangular) */
   offsetX?: number;
   offsetY?: number;
   rotateDeg?: number;
@@ -13,11 +13,25 @@ type ChairProps = {
   angleDeg?: number;
   tableRadius?: number;
   gap?: number;
+  /** Solo pulso de brillo al seleccionar la mesa */
+  selected?: boolean;
 };
 
-function flatTrapezoidPath(w: number, h: number): string {
-  const inset = w * 0.12;
-  return `M ${inset} 0 L ${w - inset} 0 L ${w} ${h} L 0 ${h} Z`;
+/** Rectángulo suave (casi plano, bordes redondeados) */
+function softRectPath(w: number, h: number): string {
+  const r = Math.min(3.5, h * 0.35, w * 0.12);
+  return [
+    `M ${r} 0`,
+    `H ${w - r}`,
+    `Q ${w} 0 ${w} ${r}`,
+    `V ${h - r}`,
+    `Q ${w} ${h} ${w - r} ${h}`,
+    `H ${r}`,
+    `Q 0 ${h} 0 ${h - r}`,
+    `V ${r}`,
+    `Q 0 0 ${r} 0`,
+    "Z",
+  ].join(" ");
 }
 
 /**
@@ -45,17 +59,25 @@ function annularSectorAtAngle(
 
   const a0 = base - half;
   const a1 = base + half;
-  const i0 = pt(rIn, a0);
-  const i1 = pt(rIn, a1);
-  const o1 = pt(rOut, a1);
-  const o0 = pt(rOut, a0);
 
-  // Arco interior (cerca de la mesa) y exterior (lejos), ambos concéntricos
+  // Esquinas suavizadas: se recorta cada vértice y se une con una curva
+  const r = Math.min(3.5, depth * 0.35);
+  const dIn = r / rIn;
+  const dOut = r / rOut;
+  const p = (rad: number, a: number) => {
+    const { x, y } = pt(rad, a);
+    return `${x} ${y}`;
+  };
+
   return [
-    `M ${i0.x} ${i0.y}`,
-    `A ${rIn} ${rIn} 0 0 1 ${i1.x} ${i1.y}`,
-    `L ${o1.x} ${o1.y}`,
-    `A ${rOut} ${rOut} 0 0 0 ${o0.x} ${o0.y}`,
+    `M ${p(rIn + r, a0)}`,
+    `Q ${p(rIn, a0)} ${p(rIn, a0 + dIn)}`,
+    `A ${rIn} ${rIn} 0 0 1 ${p(rIn, a1 - dIn)}`,
+    `Q ${p(rIn, a1)} ${p(rIn + r, a1)}`,
+    `L ${p(rOut - r, a1)}`,
+    `Q ${p(rOut, a1)} ${p(rOut, a1 - dOut)}`,
+    `A ${rOut} ${rOut} 0 0 0 ${p(rOut, a0 + dOut)}`,
+    `Q ${p(rOut, a0)} ${p(rOut - r, a0)}`,
     "Z",
   ].join(" ");
 }
@@ -71,27 +93,31 @@ export const Chair = ({
   angleDeg = 0,
   tableRadius = 48,
   gap = 3,
+  selected = false,
 }: ChairProps) => {
+  const selectedClass = selected ? "animate-chair-selected" : "";
+
   if (arched) {
     const extent = tableRadius + gap + depth + 2;
     const size = extent * 2;
-    const d = annularSectorAtAngle(
-      angleDeg,
-      tableRadius,
-      gap,
-      depth,
-      width,
-    );
 
     return (
       <svg
-        className="pointer-events-none absolute top-1/2 left-1/2 z-0 -translate-x-1/2 -translate-y-1/2 overflow-visible"
+        className={`pointer-events-none absolute top-1/2 left-1/2 z-0 overflow-visible transition-transform duration-300 ease-out ${selectedClass}`}
         width={size}
         height={size}
         viewBox={`${-extent} ${-extent} ${size} ${size}`}
+        style={{ transform: `translate(-50%, -50%) rotate(${angleDeg}deg)` }}
         aria-hidden
       >
-        <path d={d} fill={color} />
+        <path
+          d={annularSectorAtAngle(0, tableRadius, gap, depth, width)}
+          fill={color}
+          stroke={color}
+          strokeWidth={1.75}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
       </svg>
     );
   }
@@ -101,7 +127,7 @@ export const Chair = ({
 
   return (
     <div
-      className="pointer-events-none absolute top-1/2 left-1/2 z-0"
+      className={`pointer-events-none absolute top-1/2 left-1/2 z-0 transition-transform duration-300 ease-out ${selectedClass}`}
       style={{
         width: w,
         height: h,
@@ -109,8 +135,13 @@ export const Chair = ({
       }}
       aria-hidden
     >
-      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="overflow-visible">
-        <path d={flatTrapezoidPath(w, h)} fill={color} />
+      <svg
+        width={w}
+        height={h}
+        viewBox={`0 0 ${w} ${h}`}
+        className="overflow-visible"
+      >
+        <path d={softRectPath(w, h)} fill={color} />
       </svg>
     </div>
   );

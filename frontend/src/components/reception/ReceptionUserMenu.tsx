@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { Lock, LogOut, User } from "lucide-react";
+import { ConfirmModal } from "../ui/ConfirmModal";
 
 type ReceptionUserMenuProps = {
   /** Si false, oculta "Finalizar Turno" (p. ej. en móvil) */
@@ -12,6 +13,7 @@ export const ReceptionUserMenu = ({
   showEndShift = true,
 }: ReceptionUserMenuProps) => {
   const [open, setOpen] = useState(false);
+  const [endShiftOpen, setEndShiftOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -38,6 +40,14 @@ export const ReceptionUserMenu = ({
 
   const goToLogin = () => {
     setOpen(false);
+    navigate("/login");
+  };
+
+  const confirmEndShift = () => {
+    setEndShiftOpen(false);
+    // TODO: sustituir este salto al login por el cierre de turno en el backend.
+    // Hay que pedir el histórico del recepcionista (p. ej. POST /turnos/cerrar)
+    // y navegar a /login solo cuando esa petición termine bien.
     navigate("/login");
   };
 
@@ -72,15 +82,30 @@ export const ReceptionUserMenu = ({
             <button
               type="button"
               role="menuitem"
-              className="flex w-full cursor-pointer items-center gap-2.5 px-3.5 py-2.5 text-left text-sm font-semibold text-text-main transition-colors hover:bg-canvas-muted active:scale-[0.98]"
-              onClick={goToLogin}
+              className="flex w-full cursor-pointer items-center gap-2.5 bg-toast-red-soft px-3.5 py-2.5 text-left text-sm font-semibold text-toast-red transition-colors hover:bg-toast-red/15 active:scale-[0.98]"
+              onClick={() => {
+                setOpen(false);
+                setEndShiftOpen(true);
+              }}
             >
-              <LogOut className="size-4 shrink-0 text-text-muted" />
+              <LogOut className="size-4 shrink-0" />
               Finalizar Turno
             </button>
           )}
         </div>
       )}
+
+      <ConfirmModal
+        open={endShiftOpen}
+        tone="terracotta"
+        icon={<LogOut className="size-8" strokeWidth={2} />}
+        title="¿Finalizar turno?"
+        description="Se cerrará el turno de recepción y volverás al inicio de sesión."
+        confirmLabel="Finalizar"
+        cancelLabel="Cancelar"
+        onCancel={() => setEndShiftOpen(false)}
+        onConfirm={confirmEndShift}
+      />
     </div>
   );
 };
