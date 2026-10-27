@@ -1,5 +1,9 @@
 /**
  * Indica si se debe usar el formato de 12 horas.
+ * Cambiar esta constante actualiza la hora en todo el proyecto (reloj, reservas, etc.).
+ *
+ * TODO: sustituir por el valor cargado desde la configuración del restaurante en BBDD
+ * (p. ej. al hidratar el store / contexto de settings al arrancar la app).
  */
 export const USE_12_HOUR_CLOCK = true;
 
@@ -43,4 +47,29 @@ export const formatAppTime = (
     second: showSeconds ? "2-digit" : undefined,
     hour12: false,
   });
+};
+
+/**
+ * Formatea una hora almacenada en 24h ("HH:mm" o "H:mm") con el formato global.
+ */
+export const formatStoredTime = (hhmm: string) => {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(hhmm.trim());
+  if (!match) return hhmm;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (
+    !Number.isFinite(hours) ||
+    !Number.isFinite(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return hhmm;
+  }
+
+  const date = new Date();
+  date.setHours(hours, minutes, 0, 0);
+  return formatAppTime(date);
 };

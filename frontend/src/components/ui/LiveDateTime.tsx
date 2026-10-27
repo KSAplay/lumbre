@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-// Formato 12h / 24h: cambia USE_12_HOUR_CLOCK en utils/dateTime.ts
+// Formato 12h / 24h: USE_12_HOUR_CLOCK en utils/dateTime.ts (TODO: vendrá de BBDD)
 import { formatAppDate, formatAppTime } from "../../utils/dateTime";
 
 type LiveDateTimeProps = {
