@@ -1,0 +1,72 @@
+import type { FloorWallData } from "../types/table";
+
+const DEFAULT_CORNERS = {
+  nw: "square",
+  ne: "square",
+  se: "square",
+  sw: "square",
+} as const;
+
+/** Muros de ejemplo en el plano (mock hasta BBDD) */
+export const MOCK_WALLS: FloorWallData[] = [
+  {
+    id: "W-I-BARRA",
+    zone: "interior",
+    x: 46,
+    y: 2,
+    width: 30,
+    height: 8,
+    name: "Barra",
+    shape: "rectangle",
+    rotation: 0,
+    corners: { ...DEFAULT_CORNERS, sw: "round" },
+  },
+  {
+    id: "W-I-COCINA",
+    zone: "interior",
+    x: 78,
+    y: 2,
+    width: 20,
+    height: 32,
+    name: "Cocina",
+    shape: "rectangle",
+    rotation: 0,
+    corners: { ...DEFAULT_CORNERS },
+  },
+  {
+    id: "W-I-BANOS",
+    zone: "interior",
+    x: 82,
+    y: 70,
+    width: 16,
+    height: 28,
+    name: "Baños",
+    shape: "rectangle",
+    rotation: 0,
+    corners: { ...DEFAULT_CORNERS },
+  },
+  {
+    id: "W-T-FACHADA",
+    zone: "terraza",
+    x: 2,
+    y: 2,
+    width: 96,
+    height: 5,
+    name: "Fachada",
+    shape: "rectangle",
+    rotation: 0,
+    corners: { ...DEFAULT_CORNERS },
+  },
+  {
+    id: "W-T-JARDINERA",
+    zone: "terraza",
+    x: 10,
+    y: 92,
+    width: 80,
+    height: 5,
+    name: "Jardinera",
+    shape: "rectangle",
+    rotation: 0,
+    corners: { nw: "round", ne: "round", se: "round", sw: "round" },
+  },
+];
