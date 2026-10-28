@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { BellRing, ChefHat, ClipboardCheck } from "lucide-react";
+import { useNavigate } from "react-router";
+import { BellRing, ChefHat, ClipboardCheck, Lock } from "lucide-react";
 import { KitchenAlertModal } from "../../components/kitchen/KitchenAlertModal";
 import { KitchenTicketBoard } from "../../components/kitchen/KitchenTicketBoard";
 import { KitchenTicketCard } from "../../components/kitchen/KitchenTicketCard";
+import { LiveDateTime } from "../../components/ui/LiveDateTime";
 import { StaffShell } from "../../components/ui/StaffShell";
+import { UserMenu, type UserMenuItem } from "../../components/ui/UserMenu";
 import { useToast } from "../../components/ui/useToast";
 import { KITCHEN_ALERTS } from "../../constants/kitchenAlerts";
 import {
@@ -26,6 +29,7 @@ const MOCK_ARRIVAL_INTERVAL_MS = 40_000;
 
 export const KitchenKDSView = () => {
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<KdsTab>("pending");
   const [tickets, setTickets] = useState(createInitialKitchenTickets);
   const [completed, setCompleted] = useState<KitchenTicket[]>([]);
@@ -90,7 +94,6 @@ export const KitchenKDSView = () => {
         {
           ...ticket,
           alert: null,
-          items: ticket.items.map((item) => ({ ...item, done: true })),
           completedAt: new Date(),
         },
         ...prev,
@@ -140,11 +143,30 @@ export const KitchenKDSView = () => {
 
   const visibleTickets = tab === "pending" ? tickets : completed;
 
+  const userMenuItems: UserMenuItem[] = [
+    {
+      id: "lock",
+      label: "Bloquear Pantalla",
+      icon: Lock,
+      onSelect: () => navigate("/login"),
+    },
+  ];
+
   return (
-    <StaffShell emphasizeClock>
+    <StaffShell
+      headerCenter={
+        <LiveDateTime
+          layout="stacked"
+          showSeconds
+          className="items-center gap-0.5 text-center text-[11px] font-medium text-white/85 md:text-sm [&>span:last-child]:text-2xl [&>span:last-child]:font-bold [&>span:last-child]:tracking-wide [&>span:last-child]:text-white md:[&>span:last-child]:text-3xl"
+        />
+      }
+      headerRight={<UserMenu items={userMenuItems} />}
+    >
       <div className="flex min-h-0 flex-1 flex-col">
-        {/* Barra superior: pestañas y leyenda de tiempos */}
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-4 px-5 pt-5 md:px-6 lg:px-8">
+        {/* Barra superior: pestañas centradas y leyenda de tiempos */}
+        <div className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-4 px-5 pt-5 md:px-6 lg:px-8">
+          <div aria-hidden />
           <div
             className="relative grid grid-cols-2 rounded-lg bg-canvas-dim/40 p-1"
             role="tablist"
@@ -168,7 +190,9 @@ export const KitchenKDSView = () => {
                   aria-selected={active}
                   onClick={() => setTab(item.id)}
                   className={`relative z-10 flex min-w-44 cursor-pointer items-center justify-center gap-2 rounded-md px-6 py-3 text-base font-semibold transition-colors duration-200 ${
-                    active ? "text-text-main" : "text-text-muted hover:text-text-main"
+                    active
+                      ? "text-text-main"
+                      : "text-text-muted hover:text-text-main"
                   }`}
                 >
                   {item.label}
@@ -187,7 +211,7 @@ export const KitchenKDSView = () => {
           </div>
 
           <ul
-            className="flex items-center gap-4 text-sm font-semibold text-text-muted"
+            className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 justify-self-end text-sm font-semibold text-text-muted"
             aria-label="Leyenda de tiempos"
           >
             <li className="flex items-center gap-1.5">
@@ -247,7 +271,9 @@ export const KitchenKDSView = () => {
       <KitchenAlertModal
         open={alertModalOpen}
         subtitle={
-          alertTicket ? `${alertTicket.tableLabel} · #${alertTicket.number}` : ""
+          alertTicket
+            ? `${alertTicket.tableLabel} · #${alertTicket.number}`
+            : ""
         }
         activeAlert={alertTicket?.alert ?? null}
         onSelect={handleSelectAlert}

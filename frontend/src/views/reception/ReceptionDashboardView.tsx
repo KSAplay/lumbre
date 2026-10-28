@@ -1,16 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BrickWall, Check, Eraser, Monitor, Pencil } from "lucide-react";
+import { useNavigate } from "react-router";
+import {
+  BrickWall,
+  Check,
+  Eraser,
+  Lock,
+  LogOut,
+  Monitor,
+  Pencil,
+} from "lucide-react";
 import { FloorTable } from "../../components/reception/FloorTable";
 import { FloorWall } from "../../components/reception/FloorWall";
 import {
   ReceptionSidePanel,
   type TablePanelActionKey,
 } from "../../components/reception/ReceptionSidePanel";
-import { ReceptionUserMenu } from "../../components/reception/ReceptionUserMenu";
 import { TablePlusIcon } from "../../components/reception/TablePlusIcon";
 import { ConfirmModal } from "../../components/ui/ConfirmModal";
 import { LiveDateTime } from "../../components/ui/LiveDateTime";
 import { StaffShell } from "../../components/ui/StaffShell";
+import { UserMenu, type UserMenuItem } from "../../components/ui/UserMenu";
 import { maxGuestsForShape, VIEW_GRID_PX } from "../../constants/floorPlan";
 import { MOCK_TABLES } from "../../data/mockTables";
 import { MOCK_WALLS } from "../../data/mockWalls";
@@ -93,6 +102,7 @@ function shapeForGuests(zone: ZoneId, guests: number) {
 }
 
 export const ReceptionDashboardView = () => {
+  const navigate = useNavigate();
   const [tables, setTables] = useState<TableNodeData[]>(MOCK_TABLES);
   const [walls, setWalls] = useState<FloorWallData[]>(MOCK_WALLS);
   const [zone, setZone] = useState<ZoneId>("interior");
@@ -340,6 +350,30 @@ export const ReceptionDashboardView = () => {
     });
   };
 
+  const lockItem: UserMenuItem = {
+    id: "lock",
+    label: "Bloquear Pantalla",
+    icon: Lock,
+    onSelect: () => navigate("/login"),
+  };
+
+  const endShiftItem: UserMenuItem = {
+    id: "end-shift",
+    label: "Finalizar Turno",
+    icon: LogOut,
+    tone: "danger",
+    confirm: {
+      title: "¿Finalizar turno?",
+      description:
+        "Se cerrará el turno de recepción y volverás al inicio de sesión.",
+      confirmLabel: "Finalizar",
+    },
+    // TODO: sustituir este salto al login por el cierre de turno en el backend.
+    // Hay que pedir el histórico del recepcionista (p. ej. POST /turnos/cerrar)
+    // y navegar a /login solo cuando esa petición termine bien.
+    onSelect: () => navigate("/login"),
+  };
+
   return (
     <>
     <StaffShell
@@ -360,10 +394,10 @@ export const ReceptionDashboardView = () => {
       headerRight={
         <>
           <div className="md:hidden">
-            <ReceptionUserMenu showEndShift={false} />
+            <UserMenu items={[lockItem]} />
           </div>
           <div className="hidden md:block">
-            <ReceptionUserMenu showEndShift />
+            <UserMenu items={[lockItem, endShiftItem]} />
           </div>
         </>
       }
