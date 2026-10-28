@@ -115,11 +115,11 @@
   /* KDS: entrada / salida de tickets y confirmación */
   --animate-kds-ticket-in: kds-ticket-in 420ms cubic-bezier(0.22, 1, 0.36, 1)
     both;
-  --animate-kds-ticket-out: kds-ticket-out 340ms cubic-bezier(0.4, 0, 1, 1)
+  --animate-kds-ticket-out: kds-ticket-out 260ms cubic-bezier(0.4, 0, 1, 1)
     both;
-  --animate-kds-check-pop: kds-check-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1)
+  --animate-kds-check-pop: kds-check-pop 300ms cubic-bezier(0.34, 1.56, 0.64, 1)
     both;
-  --animate-kds-check-draw: kds-check-draw 1000ms ease-out both;
+  --animate-kds-check-draw: kds-check-draw 650ms ease-out both;
   --animate-kds-ready-pulse: kds-ready-pulse 1.6s ease-in-out infinite;
   --animate-kds-late-pulse: kds-late-pulse 1.2s ease-in-out infinite;
 }
@@ -301,10 +301,10 @@
 /* El trazo se dibuja en la primera mitad; el resto es pausa antes de salir */
 @keyframes kds-check-draw {
   0%,
-  20% {
+  15% {
     stroke-dashoffset: 1;
   }
-  55%,
+  60%,
   100% {
     stroke-dashoffset: 0;
   }

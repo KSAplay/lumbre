@@ -1,4 +1,4 @@
-import { useState, type AnimationEvent } from "react";
+import { useEffect, useRef, useState, type AnimationEvent } from "react";
 import { BellRing, Check, CheckCheck, SquareText, Undo2 } from "lucide-react";
 import { KITCHEN_ALERTS } from "../../constants/kitchenAlerts";
 import type { KitchenTicket } from "../../types/kitchen";
@@ -45,7 +45,9 @@ const elapsedTone = (minutes: number) => {
 const splitTime = (date: Date) => {
   const label = formatAppTime(date);
   const match = /^(\d{1,2}:\d{2})\s*(.*)$/.exec(label);
-  return match ? { clock: match[1], suffix: match[2] } : { clock: label, suffix: "" };
+  return match
+    ? { clock: match[1], suffix: match[2] }
+    : { clock: label, suffix: "" };
 };
 
 export const KitchenTicketCard = ({
@@ -61,6 +63,10 @@ export const KitchenTicketCard = ({
   const [phase, setPhase] = useState<Phase>("idle");
   // Conserva la última incidencia para que la pestaña pueda esconderse con su texto
   const [shownAlert, setShownAlert] = useState(ticket.alert);
+  const finishRef = useRef<(() => void) | null>(null);
+
+  // Si se cambia de pestaña a mitad de la animación, la acción se completa igualmente
+  useEffect(() => () => finishRef.current?.(), []);
 
   if (ticket.alert && ticket.alert !== shownAlert) {
     setShownAlert(ticket.alert);
@@ -83,13 +89,18 @@ export const KitchenTicketCard = ({
 
   const handlePrimary = () => {
     if (isBusy) return;
+    const ticketId = ticket.id;
+    finishRef.current = isPending
+      ? () => onComplete(ticketId)
+      : () => onRestore(ticketId);
     setPhase(isPending ? "confirming" : "leaving");
   };
 
   const handleWrapperAnimationEnd = (event: AnimationEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget || phase !== "leaving") return;
-    if (isPending) onComplete(ticket.id);
-    else onRestore(ticket.id);
+    const finish = finishRef.current;
+    finishRef.current = null;
+    finish?.();
   };
 
   return (
@@ -97,14 +108,16 @@ export const KitchenTicketCard = ({
       className={`relative isolate h-full ${
         phase === "leaving" ? "animate-kds-ticket-out" : "animate-kds-ticket-in"
       }`}
-      style={{ animationDelay: phase === "leaving" ? "0ms" : `${enterDelayMs}ms` }}
+      style={{
+        animationDelay: phase === "leaving" ? "0ms" : `${enterDelayMs}ms`,
+      }}
       onAnimationEnd={handleWrapperAnimationEnd}
     >
       {/* Pestaña de incidencia: sale desde detrás del ticket sin desplazarlo */}
       {tabConfig && (
         <div
           aria-hidden={!showAlertTab}
-          className={`absolute bottom-full left-1/2 z-0 flex max-w-[85%] -translate-x-1/2 items-center gap-2 rounded-t-[12px] px-4 pt-1.5 pb-3.5 text-sm font-black tracking-wide text-white uppercase shadow-md transition-transform duration-300 ease-out ${tabConfig.bg} ${
+          className={`absolute bottom-full left-1/2 z-0 flex max-w-[85%] -translate-x-1/2 items-center gap-2 rounded-t-xl px-4 pt-1.5 pb-3.5 text-sm font-black tracking-wide text-white uppercase shadow-md transition-transform duration-300 ease-out ${tabConfig.bg} ${
             showAlertTab ? "translate-y-2.5" : "translate-y-full"
           }`}
         >
@@ -115,26 +128,27 @@ export const KitchenTicketCard = ({
 
       <article
         aria-label={`${ticket.tableLabel}, comanda ${ticket.number}`}
-        className={`relative z-10 flex h-full flex-col overflow-hidden rounded-[16px] bg-canvas-white shadow-[0_10px_28px_rgba(43,44,52,0.14)] ring-4 transition-[box-shadow] duration-300 ${
-          alertConfig && phase === "idle" ? alertConfig.ring : "ring-transparent"
+        className={`relative z-10 flex h-full flex-col overflow-hidden rounded-2xl bg-canvas-white shadow-[0_10px_28px_rgba(43,44,52,0.14)] ring-4 transition-shadow duration-300 ${
+          alertConfig && phase === "idle"
+            ? alertConfig.ring
+            : "ring-transparent"
         }`}
       >
         <div
-          className={`flex min-h-0 flex-1 flex-col transition-[opacity,transform] duration-200 ease-out ${
+          className={`flex min-h-0 flex-1 flex-col transition-[opacity,transform] duration-150 ease-out ${
             isBusy ? "scale-[0.97] opacity-0" : "opacity-100"
           }`}
         >
           {/* Cabecera: mesa, nº de comanda, hora y tiempo transcurrido */}
           <header className="shrink-0 px-5 pt-4 pb-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-2.5">
-                <span className="shrink-0 rounded-full bg-cacao-300 px-3.5 py-1 text-base font-bold text-white">
-                  {ticket.tableLabel}
-                </span>
-                <span className="text-xl font-black text-text-muted">
-                  #{ticket.number}
-                </span>
-              </div>
+            <div className="grid min-h-11 grid-cols-[1fr_auto_1fr] items-center gap-3">
+              <span className="justify-self-start text-xl font-black text-text-muted">
+                #{ticket.number}
+              </span>
+
+              <span className="rounded-full bg-terracotta-500 px-3 py-0.5 text-sm font-bold text-white">
+                {ticket.tableLabel}
+              </span>
 
               {isPending && (
                 <button
@@ -142,7 +156,7 @@ export const KitchenTicketCard = ({
                   aria-label="Avisar incidencia"
                   disabled={isBusy}
                   onClick={() => onOpenAlerts(ticket.id)}
-                  className={`flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full transition-[transform,background-color] active:scale-90 ${
+                  className={`flex size-11 shrink-0 cursor-pointer items-center justify-center justify-self-end rounded-full transition-[transform,background-color] active:scale-90 ${
                     alertConfig
                       ? `${alertConfig.bg} text-white shadow-sm`
                       : "bg-canvas-muted text-text-muted"
@@ -155,7 +169,9 @@ export const KitchenTicketCard = ({
 
             <div className="mt-3 flex items-end justify-between gap-3">
               <p className="flex items-baseline gap-1.5 leading-none text-text-main">
-                <span className="text-4xl font-black tabular-nums">{clock}</span>
+                <span className="text-3xl font-extrabold tabular-nums">
+                  {clock}
+                </span>
                 {suffix && (
                   <span className="text-base font-bold text-text-muted">
                     {suffix}
@@ -163,7 +179,9 @@ export const KitchenTicketCard = ({
                 )}
               </p>
               <span
-                title={isPending ? "Tiempo en cocina" : "Tiempo total de preparación"}
+                title={
+                  isPending ? "Tiempo en cocina" : "Tiempo total de preparación"
+                }
                 className={`shrink-0 rounded-full px-3.5 py-1 text-base font-bold tabular-nums transition-colors duration-500 ${elapsedTone(
                   elapsedMinutes,
                 )} ${isLate ? "animate-kds-late-pulse" : ""}`}
@@ -176,7 +194,7 @@ export const KitchenTicketCard = ({
           <div className="mx-5 border-t border-slate-50" />
 
           {/* Contenido: nota del cliente y platos */}
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3 [scrollbar-width:thin]">
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3 scrollbar-thin">
             {ticket.note && (
               <div className="mb-3 rounded-[10px] border border-latte-300 bg-latte-100 px-3.5 py-2.5">
                 <p className="flex items-center gap-1.5 text-xs font-bold tracking-wide text-latte-500 uppercase">
@@ -192,59 +210,71 @@ export const KitchenTicketCard = ({
             <div className="mb-1 flex items-center justify-between text-xs font-bold tracking-wide text-text-muted uppercase">
               <span>Platos</span>
               <span className="tabular-nums">
-                {doneCount}/{ticket.items.length}
+                {isPending
+                  ? `${doneCount}/${ticket.items.length}`
+                  : ticket.items.length}
               </span>
             </div>
 
             <ul className="flex flex-col">
-              {ticket.items.map((item) => (
-                <li key={item.id} className="border-b border-slate-50 last:border-b-0">
-                  <button
-                    type="button"
-                    disabled={!isPending || isBusy}
-                    aria-pressed={item.done}
-                    onClick={() => onToggleItem(ticket.id, item.id)}
-                    className="flex w-full cursor-pointer items-start gap-3 py-2.5 text-left disabled:cursor-default"
+              {ticket.items.map((item) => {
+                // En terminadas se muestra limpio para poder revisar lo cocinado
+                const struck = isPending && item.done;
+
+                return (
+                  <li
+                    key={item.id}
+                    className="border-b border-slate-50 last:border-b-0"
                   >
-                    <span
-                      aria-hidden
-                      className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full border-2 transition-colors duration-200 ${
-                        item.done
-                          ? "border-toast-green bg-toast-green text-white"
-                          : "border-slate-50 bg-canvas-white text-transparent"
-                      }`}
+                    <button
+                      type="button"
+                      disabled={!isPending || isBusy}
+                      aria-pressed={isPending ? item.done : undefined}
+                      onClick={() => onToggleItem(ticket.id, item.id)}
+                      className="flex w-full cursor-pointer items-start gap-3 py-2.5 text-left disabled:cursor-default"
                     >
-                      <Check
-                        className={`size-4 transition-transform duration-200 ${
-                          item.done ? "scale-100" : "scale-0"
-                        }`}
-                        strokeWidth={3.5}
-                      />
-                    </span>
-                    <span
-                      className={`text-lg leading-snug font-semibold transition-colors duration-300 ${
-                        item.done ? "text-text-muted" : "text-text-main"
-                      }`}
-                    >
+                      {isPending && (
+                        <span
+                          aria-hidden
+                          className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full border-2 transition-colors duration-200 ${
+                            struck
+                              ? "border-toast-green bg-toast-green text-white"
+                              : "border-slate-50 bg-canvas-white text-transparent"
+                          }`}
+                        >
+                          <Check
+                            className={`size-4 transition-transform duration-200 ${
+                              struck ? "scale-100" : "scale-0"
+                            }`}
+                            strokeWidth={3.5}
+                          />
+                        </span>
+                      )}
                       <span
-                        className={`font-black ${
-                          item.done ? "text-text-muted" : "text-terracotta-400"
+                        className={`text-lg leading-snug font-semibold transition-colors duration-300 ${
+                          struck ? "text-text-muted" : "text-text-main"
                         }`}
                       >
-                        {item.quantity}x
-                      </span>{" "}
-                      {/* Tachado animado: el fondo crece de 0 % a 100 % y respeta los saltos de línea */}
-                      <span
-                        className={`bg-linear-to-r from-text-main to-text-main bg-no-repeat bg-[position:0_55%] transition-[background-size] duration-300 ease-out ${
-                          item.done ? "bg-[length:100%_3px]" : "bg-[length:0%_3px]"
-                        }`}
-                      >
-                        {item.name}
+                        <span
+                          className={`font-black ${
+                            struck ? "text-text-muted" : "text-terracotta-400"
+                          }`}
+                        >
+                          {item.quantity}x
+                        </span>{" "}
+                        {/* Tachado animado: el fondo crece de 0 % a 100 % y respeta los saltos de línea */}
+                        <span
+                          className={`bg-linear-to-r from-text-main to-text-main bg-no-repeat bg-position-[0_55%] transition-[background-size] duration-300 ease-out ${
+                            struck ? "bg-size-[100%_3px]" : "bg-size-[0%_3px]"
+                          }`}
+                        >
+                          {item.name}
+                        </span>
                       </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         </div>
@@ -254,7 +284,7 @@ export const KitchenTicketCard = ({
           type="button"
           disabled={isBusy}
           onClick={handlePrimary}
-          className={`group flex w-full shrink-0 cursor-pointer items-center justify-center border-0 px-4 py-4 text-lg font-bold text-white transition-opacity duration-200 ${
+          className={`group flex w-full shrink-0 cursor-pointer items-center justify-center border-0 px-4 py-4 text-lg font-bold text-white transition-opacity duration-150 ${
             isPending ? "bg-toast-green" : "bg-latte-400"
           } ${isBusy ? "opacity-0" : ""} ${
             isPending && allDone && !isBusy ? "animate-kds-ready-pulse" : ""

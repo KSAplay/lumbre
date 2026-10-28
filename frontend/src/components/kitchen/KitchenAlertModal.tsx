@@ -1,5 +1,5 @@
 import { useEffect, useState, type TransitionEvent } from "react";
-import { Check } from "lucide-react";
+import { Check, TriangleAlert } from "lucide-react";
 import {
   KITCHEN_ALERT_ORDER,
   KITCHEN_ALERTS,
@@ -94,6 +94,9 @@ export const KitchenAlertModal = ({
         onTransitionEnd={handleTransitionEnd}
       >
         <div className="px-8 pt-7 pb-8">
+          <div className="mb-3 flex justify-center text-latte-400">
+            <TriangleAlert className="size-10" strokeWidth={2} />
+          </div>
           <h2
             id="kitchen-alert-title"
             className="text-center text-2xl font-bold text-text-main"
@@ -142,26 +145,26 @@ export const KitchenAlertModal = ({
         </div>
 
         <div className="flex">
+          <button
+            type="button"
+            onClick={onClose}
+            className="group flex flex-1 cursor-pointer items-center justify-center border-0 bg-latte-100 px-3 py-4 text-lg font-bold text-latte-500"
+          >
+            <span className="inline-block transition-transform group-active:scale-95">
+              Cerrar
+            </span>
+          </button>
           {activeAlert && (
             <button
               type="button"
               onClick={onClear}
-              className="group flex flex-1 cursor-pointer items-center justify-center border-0 bg-toast-green px-3 py-4 text-lg font-bold text-white"
+              className="group flex flex-1 cursor-pointer items-center justify-center border-0 bg-latte-400 px-3 py-4 text-lg font-bold text-white"
             >
               <span className="inline-block transition-transform group-active:scale-95">
                 Incidencia resuelta
               </span>
             </button>
           )}
-          <button
-            type="button"
-            onClick={onClose}
-            className="group flex flex-1 cursor-pointer items-center justify-center border-0 bg-canvas-muted px-3 py-4 text-lg font-bold text-text-muted"
-          >
-            <span className="inline-block transition-transform group-active:scale-95">
-              Cerrar
-            </span>
-          </button>
         </div>
       </div>
     </div>
