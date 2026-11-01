@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "id": "order-2001",
+  "number": 1,
+  "status": "en_cocina",
+  "message": "Comanda enviada a cocina"
+}

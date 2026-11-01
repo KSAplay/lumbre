@@ -48,3 +48,47 @@ function asFree(base: TableBase): TableNodeData {
 export const MOCK_TABLES: TableNodeData[] = [...INTERIOR, ...TERRAZA].map(
   asFree,
 );
+
+/** Estado de demo por mesa: [estado, comensales, minutos en ese estado] */
+const WAITER_DEMO_STATES: Partial<
+  Record<string, [TableNodeData["status"], number, number]>
+> = {
+  I01: ["servido", 8, 18],
+  I02: ["reservada", 6, 0],
+  I03: ["decidiendo", 3, 4],
+  I04: ["esperando", 4, 22],
+  I05: ["cuenta", 2, 6],
+  I07: ["esperando", 4, 9],
+  I08: ["limpiando", 0, 2],
+  I12: ["esperando", 2, 3],
+  I13: ["decidiendo", 2, 1],
+  T02: ["servido", 4, 31],
+  T03: ["decidiendo", 3, 7],
+  T06: ["cuenta", 5, 12],
+  T07: ["reservada", 8, 0],
+};
+
+/**
+ * Crea las mesas de la demo del camarero con estados variados y tiempos
+ * relativos al momento actual, para que se vean todos los colores y contadores.
+ *
+ * @returns Copia de {@link MOCK_TABLES}; las mesas sin estado de demo quedan libres.
+ */
+export const createWaiterDemoTables = (): TableNodeData[] => {
+  const now = Date.now();
+  return MOCK_TABLES.map((table) => {
+    const demo = WAITER_DEMO_STATES[table.id];
+    if (!demo) return { ...table, statusChangedAt: now };
+    const [status, guestCount, minutesAgo] = demo;
+    return {
+      ...table,
+      status,
+      guestCount,
+      statusChangedAt: now - minutesAgo * 60_000,
+      reservation:
+        status === "reservada"
+          ? { guestName: table.id === "I02" ? "Familia Ruiz" : "Lucía M.", time: "21:30" }
+          : undefined,
+    };
+  });
+};
