@@ -63,7 +63,7 @@ const INITIAL_TEMPLATES: { minutesAgo: number; ticket: TicketTemplate }[] = [
 
 export const INITIAL_KITCHEN_TICKET_COUNT = INITIAL_TEMPLATES.length;
 
-/** Rondas que irán llegando durante la demo, en orden */
+/** Rondas de demo para generar llegadas (botón temporal / futuros mocks) */
 export const MOCK_INCOMING_TICKETS: TicketTemplate[] = [
   {
     tableLabel: "Mesa 09",
@@ -88,6 +88,19 @@ export const MOCK_INCOMING_TICKETS: TicketTemplate[] = [
     ],
   },
 ];
+
+const MOCK_TICKET_POOL: TicketTemplate[] = [
+  ...INITIAL_TEMPLATES.map(({ ticket }) => ticket),
+  ...MOCK_INCOMING_TICKETS,
+];
+
+/**
+ * Elige una plantilla aleatoria del pool de demo para simular una ronda nueva.
+ *
+ * @returns Copia superficial de la plantilla (los ítems se clonan en {@link createKitchenTicket}).
+ */
+export const pickRandomKitchenTicketTemplate = (): TicketTemplate =>
+  MOCK_TICKET_POOL[Math.floor(Math.random() * MOCK_TICKET_POOL.length)];
 
 /**
  * Crea las comandas iniciales de la demo con horas relativas al momento actual,
@@ -115,7 +128,7 @@ export const createKitchenTicket = (
   number: number,
 ): KitchenTicket => ({
   ...template,
-  items: template.items.map((item) => ({ ...item })),
+  items: template.items.map((item) => ({ ...item, done: false })),
   id: `ticket-${number}`,
   number,
   sentAt: new Date(),

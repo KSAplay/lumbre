@@ -61,12 +61,19 @@ export const KitchenTicketCard = ({
   onRestore,
 }: KitchenTicketCardProps) => {
   const [phase, setPhase] = useState<Phase>("idle");
+  // Se activa tras el primer paint para que la animación CSS también dispare en altas dinámicas
+  const [enterActive, setEnterActive] = useState(false);
   // Conserva la última incidencia para que la pestaña pueda esconderse con su texto
   const [shownAlert, setShownAlert] = useState(ticket.alert);
   const finishRef = useRef<(() => void) | null>(null);
 
   // Si se cambia de pestaña a mitad de la animación, la acción se completa igualmente
   useEffect(() => () => finishRef.current?.(), []);
+
+  useEffect(() => {
+    const id = window.requestAnimationFrame(() => setEnterActive(true));
+    return () => window.cancelAnimationFrame(id);
+  }, []);
 
   if (ticket.alert && ticket.alert !== shownAlert) {
     setShownAlert(ticket.alert);
@@ -103,10 +110,14 @@ export const KitchenTicketCard = ({
     finish?.();
   };
 
+  const enterClass = enterActive
+    ? "animate-kds-ticket-in"
+    : "opacity-0 translate-y-6 scale-[0.94]";
+
   return (
     <div
       className={`relative isolate h-full ${
-        phase === "leaving" ? "animate-kds-ticket-out" : "animate-kds-ticket-in"
+        phase === "leaving" ? "animate-kds-ticket-out" : enterClass
       }`}
       style={{
         animationDelay: phase === "leaving" ? "0ms" : `${enterDelayMs}ms`,

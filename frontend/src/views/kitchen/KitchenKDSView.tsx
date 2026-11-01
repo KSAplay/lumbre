@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { BellRing, ChefHat, ClipboardCheck, Lock } from "lucide-react";
+import { BellRing, ChefHat, ClipboardCheck, Lock, Plus } from "lucide-react";
 import { KitchenAlertModal } from "../../components/kitchen/KitchenAlertModal";
 import { KitchenTicketBoard } from "../../components/kitchen/KitchenTicketBoard";
 import { KitchenTicketCard } from "../../components/kitchen/KitchenTicketCard";
@@ -11,9 +11,9 @@ import { useToast } from "../../components/ui/useToast";
 import { KITCHEN_ALERTS } from "../../constants/kitchenAlerts";
 import {
   INITIAL_KITCHEN_TICKET_COUNT,
-  MOCK_INCOMING_TICKETS,
   createInitialKitchenTickets,
   createKitchenTicket,
+  pickRandomKitchenTicketTemplate,
 } from "../../data/mockKitchenTickets";
 import type { KitchenAlertType, KitchenTicket } from "../../types/kitchen";
 
@@ -24,9 +24,6 @@ const TABS: { id: KdsTab; label: string }[] = [
   { id: "completed", label: "Terminadas" },
 ];
 
-// TODO: sustituir por el evento de Socket.io de nueva ronda
-const MOCK_ARRIVAL_INTERVAL_MS = 40_000;
-
 export const KitchenKDSView = () => {
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -36,7 +33,8 @@ export const KitchenKDSView = () => {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [alertModalOpen, setAlertModalOpen] = useState(false);
   const [alertTicketId, setAlertTicketId] = useState<string | null>(null);
-  const [incomingIndex, setIncomingIndex] = useState(0);
+  // TODO: borrar junto con el botón flotante de demo
+  const nextTicketNumberRef = useRef(INITIAL_KITCHEN_TICKET_COUNT + 1);
 
   const tabIndex = TABS.findIndex((item) => item.id === tab);
   const alertTicket = tickets.find((ticket) => ticket.id === alertTicketId);
@@ -46,23 +44,18 @@ export const KitchenKDSView = () => {
     return () => window.clearInterval(id);
   }, []);
 
-  useEffect(() => {
-    if (incomingIndex >= MOCK_INCOMING_TICKETS.length) return;
-
-    const id = window.setTimeout(() => {
-      const template = MOCK_INCOMING_TICKETS[incomingIndex];
-      const number = INITIAL_KITCHEN_TICKET_COUNT + incomingIndex + 1;
-      setTickets((prev) => [...prev, createKitchenTicket(template, number)]);
-      setIncomingIndex((index) => index + 1);
-      showToast({
-        message: `Nueva comanda · ${template.tableLabel}`,
-        icon: <ChefHat className="size-4" strokeWidth={2.5} />,
-        tone: "terracotta",
-      });
-    }, MOCK_ARRIVAL_INTERVAL_MS);
-
-    return () => window.clearTimeout(id);
-  }, [incomingIndex, showToast]);
+  // TODO: borrar este handler junto con el botón flotante; las rondas llegarán por Socket.io
+  const handleAddMockTicket = useCallback(() => {
+    const template = pickRandomKitchenTicketTemplate();
+    const number = nextTicketNumberRef.current;
+    nextTicketNumberRef.current += 1;
+    setTickets((prev) => [...prev, createKitchenTicket(template, number)]);
+    showToast({
+      message: `Nueva comanda · ${template.tableLabel}`,
+      icon: <ChefHat className="size-4" strokeWidth={2.5} />,
+      tone: "terracotta",
+    });
+  }, [showToast]);
 
   const handleToggleItem = useCallback((ticketId: string, itemId: string) => {
     setTickets((prev) =>
@@ -280,6 +273,16 @@ export const KitchenKDSView = () => {
         onClear={() => setTicketAlert(null)}
         onClose={handleCloseAlerts}
       />
+
+      {/* TODO: borrar este botón flotante de demo; las rondas llegarán por Socket.io */}
+      <button
+        type="button"
+        onClick={handleAddMockTicket}
+        aria-label="Añadir comanda de prueba"
+        className="absolute right-6 bottom-6 z-40 flex size-14 cursor-pointer items-center justify-center rounded-full bg-terracotta-300 text-white shadow-lg transition-colors hover:bg-terracotta-400 active:scale-95"
+      >
+        <Plus className="size-7" strokeWidth={2.5} />
+      </button>
     </StaffShell>
   );
 };
