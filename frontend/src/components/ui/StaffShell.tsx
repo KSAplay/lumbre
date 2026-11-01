@@ -12,6 +12,11 @@ type StaffShellProps = {
   showBrandBar?: boolean;
   /** Reloj más grande y apilado (cocina / recepción sin headerRight) */
   emphasizeClock?: boolean;
+  /**
+   * Vistas móvil/tablet (camarero): altura fija de pantalla y, a partir de `xl`,
+   * todo se encierra en una tarjeta tipo tablet como la carta del cliente.
+   */
+  framed?: boolean;
 };
 
 /** Marco común: franja terracota arriba + panel canvas con bordes superiores redondeados. */
@@ -21,9 +26,10 @@ export const StaffShell = ({
   headerRight,
   showBrandBar = true,
   emphasizeClock = false,
+  framed = false,
 }: StaffShellProps) => {
-  return (
-    <div className="flex min-h-dvh flex-col bg-terracotta-300 font-sans text-text-main">
+  const content = (
+    <>
       {showBrandBar ? (
         <header className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-3 px-5 pt-5 pb-3 text-white md:px-8 md:pt-6 md:pb-4">
           <div className="flex items-center gap-2.5 justify-self-start">
@@ -59,6 +65,22 @@ export const StaffShell = ({
       <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-[1.75rem] bg-canvas shadow-[0_-8px_24px_rgba(43,44,52,0.08)]">
         {children}
       </main>
+    </>
+  );
+
+  if (framed) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-terracotta-300 font-sans text-text-main xl:bg-white xl:p-6">
+        <div className="relative flex h-dvh w-full flex-col overflow-hidden bg-terracotta-300 xl:h-[min(90dvh,1024px)] xl:max-w-3xl xl:rounded-2xl xl:shadow-xl">
+          {content}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-dvh flex-col bg-terracotta-300 font-sans text-text-main">
+      {content}
     </div>
   );
 };

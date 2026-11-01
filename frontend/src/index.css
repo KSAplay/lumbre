@@ -122,6 +122,21 @@
   --animate-kds-check-draw: kds-check-draw 650ms ease-out both;
   --animate-kds-ready-pulse: kds-ready-pulse 1.6s ease-in-out infinite;
   --animate-kds-late-pulse: kds-late-pulse 1.2s ease-in-out infinite;
+
+  /* Camarero: contador de pestaña al llegar algo nuevo */
+  --animate-badge-pop: badge-pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes badge-pop {
+  0% {
+    transform: scale(0.4);
+  }
+  45% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 @keyframes dish-marquee {
