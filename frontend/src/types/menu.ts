@@ -1,4 +1,5 @@
-export type CategoryId = 'ENTRADAS' | 'PRINCIPALES' | 'POSTRES' | 'BEBIDAS'
+/** Slug de categoría (editable desde backoffice / seed). */
+export type CategoryId = string
 
 export interface Category {
   id: CategoryId

@@ -13,6 +13,8 @@ export type KitchenTicketItem = {
 export type KitchenTicket = {
   id: string;
   number: number;
+  /** Id de plano unificado (`I04`, `T02`, …) */
+  tableId: string;
   tableLabel: string;
   sentAt: Date;
   /** Nota general del cliente para toda la ronda */

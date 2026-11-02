@@ -14,17 +14,17 @@ export interface OrderItem {
   name: string;
   price: number;
   quantity: number;
-  notes?: string;         // Ej: 'Sin cebolla', 'Salsa aparte'
+  notes?: string;
   status: OrderItemStatus;
 }
 
 // Una ronda (lote) de pedidos enviada por la mesa
 export interface OrderRound {
   id: string;
-  roundNumber: number;    // Ronda 1, Ronda 2...
+  roundNumber: number;
   items: OrderItem[];
   status: RoundStatus;
-  createdAt: string;      // ISO Timestamp
+  createdAt: string;
 }
 
 // Sesión activa de una mesa que agrupa sus rondas
