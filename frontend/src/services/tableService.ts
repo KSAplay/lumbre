@@ -1,15 +1,9 @@
-import type { TableStatus } from "../types/table";
-
-/**
- * Base temporal: JSON estáticos en public/api (Vite).
- * Cuando el backend Express esté listo, cámbiala p. ej. a:
- *   'http://localhost:3000/api'
- *
- * TODO: sustituir API_BASE y los GET a .json por POST reales a /mesas/:id/...
- */
-const IP = "192.168.1.10"; /* temporal */
-const PORT = 5173;
-const API_BASE = `http://${IP}:${PORT}/api`;
+import type {
+  FloorWallData,
+  TableNodeData,
+  TableStatus,
+} from "../types/table";
+import { apiRequest } from "../config/api";
 
 export type UpdateTableStatusBody = {
   status: TableStatus;
@@ -21,20 +15,43 @@ export type UpdateTableStatusResponse = {
   message: string;
 };
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-    ...init,
+export type FloorPlanResponse = {
+  tables: TableNodeData[];
+  walls: FloorWallData[];
+};
+
+type FloorPlanApi = {
+  tables: Array<
+    Omit<TableNodeData, "statusChangedAt"> & { statusChangedAt: number }
+  >;
+  walls: FloorWallData[];
+};
+
+/**
+ * Carga el plano de sala (mesas + muros) desde Mongo.
+ */
+export async function getFloorPlan(): Promise<FloorPlanResponse> {
+  const data = await apiRequest<FloorPlanApi>("/plano");
+  return {
+    tables: data.tables.map((t) => ({
+      ...t,
+      statusChangedAt: t.statusChangedAt,
+    })),
+    walls: data.walls,
+  };
+}
+
+/**
+ * Guarda el plano completo al salir del modo edición (check).
+ */
+export async function saveFloorPlan(
+  tables: TableNodeData[],
+  walls: FloorWallData[],
+): Promise<{ ok: boolean; message: string }> {
+  return apiRequest("/plano", {
+    method: "PUT",
+    body: JSON.stringify({ tables, walls }),
   });
-
-  if (!response.ok) {
-    throw new Error(`Error HTTP ${response.status}`);
-  }
-
-  return response.json() as Promise<T>;
 }
 
 /** Cambia el estado operativo de una mesa (ciclo de sala). */
@@ -42,13 +59,17 @@ export async function updateTableStatus(
   tableId: string,
   body: UpdateTableStatusBody,
 ): Promise<UpdateTableStatusResponse> {
-  // Backend real:
-  // return request<UpdateTableStatusResponse>(`/mesas/${tableId}/estado`, {
-  //   method: "POST",
-  //   body: JSON.stringify(body),
-  // });
+  return apiRequest<UpdateTableStatusResponse>(`/mesas/${tableId}/estado`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
 
-  // Mock temporal (public/api solo admite GET):
-  console.debug("[mock] mesa estado", tableId, body);
-  return request<UpdateTableStatusResponse>("/mesa-estado.json");
+/** Pasa todas las mesas en limpieza a libre. */
+export async function releaseCleaningTables(): Promise<{
+  ok: boolean;
+  message: string;
+  modifiedCount?: number;
+}> {
+  return apiRequest("/mesas/liberar-limpias", { method: "POST" });
 }

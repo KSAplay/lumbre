@@ -1,86 +1,119 @@
-import type { Category, Dish } from '../types/menu'
-
-/**
- * Base temporal: JSON estáticos en public/api (Vite en localhost:5173).
- * Cuando el backend Express esté listo, cámbiala por ejemplo a:
- *   'http://localhost:3000/api'
- *
- * Si entras a la app por IP de red (vite --host), usa mejor '/api'
- * para evitar CORS.
- */
-const IP = '192.168.1.16'; /* temporal */
-const PORT = 5173;
-const API_BASE = `http://${IP}:${PORT}/api`;
+import type { Category, Dish } from "../types/menu";
+import type { CustomerOrderStatus } from "../constants/orderStatus";
+import { apiRequest } from "../config/api";
 
 export type MenuResponse = {
-  categories: Category[]
-  dishes: Dish[]
-}
+  categories: Category[];
+  dishes: Dish[];
+};
 
 export type HelpRequestBody = {
-  tableId: string
-  tableLabel: string
-}
+  tableId: string;
+  tableLabel: string;
+};
 
 export type HelpResponse = {
-  ok: boolean
-  message: string
-}
+  ok: boolean;
+  message: string;
+};
 
 export type BillRequestBody = {
-  tableId: string
-  tableLabel: string
-}
+  tableId: string;
+  tableLabel: string;
+};
 
 export type BillResponse = {
-  ok: boolean
-  message: string
-}
+  ok: boolean;
+  message: string;
+};
 
 export type OrderLinePayload = {
-  dishId: number
-  name: string
-  quantity: number
-  price: number
-}
+  dishId: number;
+  name: string;
+  quantity: number;
+  price: number;
+};
 
 export type SendRoundBody = {
-  tableId: string
-  tableLabel: string
-  note?: string
-  items: OrderLinePayload[]
-  sentAt: string
-}
+  tableId: string;
+  tableLabel: string;
+  note?: string;
+  items: OrderLinePayload[];
+  sentAt: string;
+};
 
 export type SendRoundResponse = {
-  ok: boolean
-  id: string
-  number: number
-  status: 'por_confirmar' | 'en_cocina' | 'servido' | 'pagado' | 'incidencia'
-  message: string
-}
+  ok: boolean;
+  id: string;
+  number: number;
+  status: CustomerOrderStatus | "incidencia";
+  message: string;
+};
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-    ...init,
-  })
+/** Ronda hidratada para el historial del cliente */
+export type TableRound = {
+  id: string;
+  number: number;
+  tableId: string;
+  tableLabel: string;
+  tableNumber: number;
+  status: CustomerOrderStatus;
+  sentAt: Date;
+  note?: string;
+  items: OrderLinePayload[];
+};
 
-  if (!response.ok) {
-    throw new Error(`Error HTTP ${response.status}`)
-  }
-
-  return response.json() as Promise<T>
-}
+type RoundApi = {
+  id: string;
+  number: number;
+  tableId: string;
+  tableLabel: string;
+  tableNumber: number;
+  status: CustomerOrderStatus;
+  sentAt: string;
+  note?: string;
+  items: OrderLinePayload[];
+};
 
 /** Obtiene la carta (categorías + platos). */
 export async function getMenu(): Promise<MenuResponse> {
-  // Backend real: return request<MenuResponse>('/carta')
-  // Mock temporal:
-  return request<MenuResponse>('/menu.json')
+  return apiRequest<MenuResponse>("/menu");
+}
+
+/**
+ * Obtiene las rondas de una mesa por su número de plano (URL `/mesa/:n`).
+ *
+ * @param tableNumber - Número visible de mesa.
+ * @returns Rondas ordenadas de más antigua a más reciente.
+ */
+export async function getTableRounds(
+  tableNumber: string | number,
+): Promise<TableRound[]> {
+  const num = Number(tableNumber);
+  if (!Number.isFinite(num)) return [];
+
+  const data = await apiRequest<{ rounds: RoundApi[] }>(
+    `/rondas?tableNumber=${encodeURIComponent(String(num))}`,
+  );
+
+  return data.rounds
+    .map((round) => ({
+      id: round.id,
+      number: round.number,
+      tableId: round.tableId,
+      tableLabel: round.tableLabel,
+      tableNumber: round.tableNumber,
+      status: round.status,
+      sentAt: new Date(round.sentAt),
+      note: round.note,
+      items: round.items.map(({ dishId, name, quantity, price }) => ({
+        dishId,
+        name,
+        quantity,
+        price,
+      })),
+    }))
+    .sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime());
 }
 
 /** Avisa al equipo de sala desde la mesa. */
@@ -88,31 +121,21 @@ export async function requestTableHelp(
   tableId: string,
   body: HelpRequestBody,
 ): Promise<HelpResponse> {
-  // Backend real:
-  // return request<HelpResponse>(`/mesas/${tableId}/ayuda`, {
-  //   method: 'POST',
-  //   body: JSON.stringify(body),
-  // })
-
-  // Mock temporal (los JSON de public/ solo admiten GET):
-  console.debug('[mock] ayuda', tableId, body)
-  return request<HelpResponse>('/ayuda.json')
+  return apiRequest<HelpResponse>(`/mesas/${tableId}/ayuda`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
-/** Envía una ronda de pedido a cocina. */
+/** Envía una ronda de pedido (varios platos) a confirmar. */
 export async function sendOrderRound(
   tableId: string,
   body: SendRoundBody,
 ): Promise<SendRoundResponse> {
-  // Backend real:
-  // return request<SendRoundResponse>(`/mesas/${tableId}/rondas`, {
-  //   method: 'POST',
-  //   body: JSON.stringify(body),
-  // })
-
-  // Mock temporal (los JSON de public/ solo admiten GET):
-  console.debug('[mock] ronda', tableId, body)
-  return request<SendRoundResponse>('/rondas.json')
+  return apiRequest<SendRoundResponse>(`/mesas/${tableId}/rondas`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 /** Solicita la cuenta de la mesa. */
@@ -120,13 +143,8 @@ export async function requestTableBill(
   tableId: string,
   body: BillRequestBody,
 ): Promise<BillResponse> {
-  // Backend real:
-  // return request<BillResponse>(`/mesas/${tableId}/cuenta`, {
-  //   method: 'POST',
-  //   body: JSON.stringify(body),
-  // })
-
-  // Mock temporal (los JSON de public/ solo admiten GET):
-  console.debug('[mock] cuenta', tableId, body)
-  return request<BillResponse>('/cuenta.json')
+  return apiRequest<BillResponse>(`/mesas/${tableId}/cuenta`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }

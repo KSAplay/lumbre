@@ -1,19 +1,13 @@
-import type { WaiterOrderLine } from "../types/waiter";
-
-/**
- * Base temporal: JSON estáticos en public/api (Vite).
- * Cuando el backend Express esté listo, cámbiala p. ej. a:
- *   'http://localhost:3000/api'
- *
- * TODO: sustituir API_BASE y los GET a .json por las peticiones reales a /rondas y /mesas
- */
-const IP = "192.168.1.13"; /* temporal */
-const PORT = 5173;
-const API_BASE = `http://${IP}:${PORT}/api`;
+import type { KitchenAlertType } from "../types/kitchen";
+import type {
+  PendingOrder,
+  WaiterNotification,
+  WaiterOrderLine,
+} from "../types/waiter";
+import { apiRequest } from "../config/api";
 
 export type ConfirmOrderBody = {
   tableId: string;
-  /** Líneas finales tras el ajuste del camarero */
   items: WaiterOrderLine[];
   note?: string;
 };
@@ -51,87 +45,125 @@ export type ManualOrderResponse = {
   message: string;
 };
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-    ...init,
-  });
+export type PendingOrdersResponse = {
+  orders: PendingOrder[];
+};
 
-  if (!response.ok) {
-    throw new Error(`Error HTTP ${response.status}`);
-  }
+export type WaiterNotificationsResponse = {
+  notifications: WaiterNotification[];
+};
 
-  return response.json() as Promise<T>;
+type PendingOrderApi = {
+  id: string;
+  number: number;
+  tableId: string;
+  tableLabel: string;
+  sentAt: string;
+  note?: string;
+  items: WaiterOrderLine[];
+};
+
+type NotificationApi = {
+  id: string;
+  type: WaiterNotification["type"];
+  tableId: string;
+  tableLabel: string;
+  message: string;
+  createdAt: string;
+  read: boolean;
+  kitchenAlert?: KitchenAlertType;
+  roundId?: string;
+};
+
+/**
+ * Carga las rondas por confirmar.
+ */
+export async function getPendingOrders(): Promise<PendingOrdersResponse> {
+  const data = await apiRequest<{ orders: PendingOrderApi[] }>(
+    "/rondas/pendientes",
+  );
+
+  const orders = data.orders
+    .map((order) => ({
+      id: order.id,
+      number: order.number,
+      tableId: order.tableId,
+      tableLabel: order.tableLabel,
+      sentAt: new Date(order.sentAt),
+      note: order.note,
+      items: order.items.map((item) => ({ ...item })),
+    }))
+    .sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime());
+
+  return { orders };
 }
 
 /**
- * Confirma una ronda enviada por el cliente para que pase a cocina (KDS).
- *
- * @param orderId - Id de la ronda por confirmar.
- * @param body - Mesa y líneas definitivas (pueden diferir de las que envió el cliente).
- * @returns Respuesta del servidor con la ronda ya en estado `en_cocina`.
- * @throws Error si la petición falla o el servidor responde con un código HTTP de error.
+ * Carga los avisos de sala.
+ */
+export async function getWaiterNotifications(): Promise<WaiterNotificationsResponse> {
+  const data = await apiRequest<{ notifications: NotificationApi[] }>(
+    "/avisos",
+  );
+
+  const notifications = data.notifications
+    .map((n) => ({
+      id: n.id,
+      type: n.type,
+      tableId: n.tableId,
+      tableLabel: n.tableLabel,
+      message: n.message,
+      createdAt: new Date(n.createdAt),
+      read: n.read,
+      kitchenAlert: n.kitchenAlert,
+    }))
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+  return { notifications };
+}
+
+/** Marca un aviso como leído en el servidor. */
+export async function markNotificationRead(
+  notificationId: string,
+): Promise<void> {
+  await apiRequest(`/avisos/${notificationId}/leer`, { method: "PATCH" });
+}
+
+/**
+ * Confirma una ronda enviada por el cliente para que pase a cocina.
  */
 export async function confirmOrder(
   orderId: string,
   body: ConfirmOrderBody,
 ): Promise<ConfirmOrderResponse> {
-  // Backend real:
-  // return request<ConfirmOrderResponse>(`/rondas/${orderId}/confirmar`, {
-  //   method: "POST",
-  //   body: JSON.stringify(body),
-  // });
-
-  // Mock temporal (public/api solo admite GET):
-  console.debug("[mock] confirmar ronda", orderId, body);
-  return request<ConfirmOrderResponse>("/pedido-confirmado.json");
+  return apiRequest<ConfirmOrderResponse>(`/rondas/${orderId}/confirmar`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 /**
- * Rechaza una ronda enviada por el cliente; no llega a cocina.
- *
- * @param orderId - Id de la ronda por confirmar.
- * @param body - Mesa y motivo opcional que verá el cliente en su historial.
- * @returns Respuesta del servidor con la ronda en estado `cancelado`.
- * @throws Error si la petición falla o el servidor responde con un código HTTP de error.
+ * Rechaza una ronda enviada por el cliente.
  */
 export async function rejectOrder(
   orderId: string,
   body: RejectOrderBody,
 ): Promise<RejectOrderResponse> {
-  // Backend real:
-  // return request<RejectOrderResponse>(`/rondas/${orderId}/rechazar`, {
-  //   method: "POST",
-  //   body: JSON.stringify(body),
-  // });
-
-  // Mock temporal (public/api solo admite GET):
-  console.debug("[mock] rechazar ronda", orderId, body);
-  return request<RejectOrderResponse>("/pedido-rechazado.json");
+  return apiRequest<RejectOrderResponse>(`/rondas/${orderId}/rechazar`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 /**
- * Envía directamente a cocina una comanda tomada a mano por el camarero,
- * sin pasar por el estado «por confirmar».
- *
- * @param tableId - Id de la mesa que pide.
- * @returns Respuesta del servidor con la ronda creada en estado `en_cocina`.
- * @throws Error si la petición falla o el servidor responde con un código HTTP de error.
+ * Envía una comanda manual directo a cocina.
  */
 export async function sendManualOrder(
   tableId: string,
   body: ManualOrderBody,
 ): Promise<ManualOrderResponse> {
-  // Backend real:
-  // return request<ManualOrderResponse>(`/mesas/${tableId}/rondas/manual`, {
-  //   method: "POST",
-  //   body: JSON.stringify(body),
-  // });
-
-  // Mock temporal (public/api solo admite GET):
-  console.debug("[mock] comanda manual", tableId, body);
-  return request<ManualOrderResponse>("/comanda-manual.json");
+  return apiRequest<ManualOrderResponse>(`/mesas/${tableId}/rondas/manual`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
