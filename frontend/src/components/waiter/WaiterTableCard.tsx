@@ -36,7 +36,7 @@ export const WaiterTableCard = ({
       <button
         type="button"
         onClick={() => onSelect(table.id)}
-        className="relative flex h-full w-full cursor-pointer overflow-hidden rounded-[12px] bg-canvas-white text-left shadow-sm transition-transform active:scale-[0.97]"
+        className="relative flex h-full w-full cursor-pointer overflow-hidden rounded-xl bg-canvas-white text-left shadow-sm transition-transform active:scale-[0.97]"
       >
         <span
           aria-hidden
@@ -47,7 +47,10 @@ export const WaiterTableCard = ({
             <span className="flex items-center gap-1.5 text-[15px] font-black tracking-tight text-text-main tabular-nums">
               Mesa {String(table.number).padStart(2, "0")}
               {hasAlert && (
-                <span className="relative flex size-2.5" aria-label="Aviso sin leer">
+                <span
+                  className="relative flex size-2.5"
+                  aria-label="Aviso sin leer"
+                >
                   <span className="absolute inline-flex size-full animate-ping rounded-full bg-status-urgente opacity-60" />
                   <span className="relative inline-flex size-2.5 rounded-full bg-status-urgente" />
                 </span>

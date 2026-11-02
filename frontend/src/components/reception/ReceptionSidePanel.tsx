@@ -4,6 +4,7 @@ import {
   BrickWall,
   CheckCircle2,
   Circle,
+  ClipboardList,
   Minus,
   Plus,
   QrCode,
@@ -41,8 +42,12 @@ import {
   formatStatusElapsed,
 } from "../../utils/tableTime";
 import { Badge } from "../ui/Badge";
+import { LoadErrorState } from "../ui/LoadErrorState";
+import { ReceptionPanelSkeleton } from "./ReceptionSkeletons";
 
 type ReceptionSidePanelProps = {
+  loading?: boolean;
+  error?: boolean;
   tables: TableNodeData[];
   selectedTable: TableNodeData | null;
   selectedWall: FloorWallData | null;
@@ -57,6 +62,8 @@ type ReceptionSidePanelProps = {
   onChangeWall: (wallId: string, next: Partial<FloorWallData>) => void;
   onRemoveTable: (tableId: string) => void;
   onRemoveWall: (wallId: string) => void;
+  onReleaseCleaningTables?: () => void;
+  releaseCleaningBusy?: boolean;
 };
 
 export type TablePanelActionKey =
@@ -287,11 +294,20 @@ const GuestStepper = ({
   );
 };
 
-const GlobalOverview = ({ tables }: { tables: TableNodeData[] }) => {
+const GlobalOverview = ({
+  tables,
+  onReleaseCleaningTables,
+  releaseCleaningBusy,
+}: {
+  tables: TableNodeData[];
+  onReleaseCleaningTables?: () => void;
+  releaseCleaningBusy?: boolean;
+}) => {
   const counts = ALL_TABLE_STATUSES.map((status) => ({
     status,
     count: tables.filter((t) => t.status === status).length,
   })).filter((c) => c.count > 0);
+  const cleaningCount = tables.filter((t) => t.status === "limpiando").length;
 
   return (
     <div className="flex flex-col gap-5">
@@ -332,10 +348,13 @@ const GlobalOverview = ({ tables }: { tables: TableNodeData[] }) => {
         </button>
         <button
           type="button"
-          className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-canvas-white px-3 py-2.5 text-sm font-semibold text-text-main ring-1 ring-slate-50 transition-colors hover:bg-surface-hover active:scale-[0.98]"
+          disabled={!onReleaseCleaningTables || cleaningCount === 0 || releaseCleaningBusy}
+          onClick={() => onReleaseCleaningTables?.()}
+          className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-canvas-white px-3 py-2.5 text-sm font-semibold text-text-main ring-1 ring-slate-50 transition-colors hover:bg-surface-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100"
         >
           <Sparkles className="size-4" />
           Liberar mesas limpias
+          {cleaningCount > 0 ? ` (${cleaningCount})` : ""}
         </button>
       </div>
     </div>
@@ -699,6 +718,8 @@ const TableDetail = ({
 };
 
 export const ReceptionSidePanel = ({
+  loading = false,
+  error = false,
   tables,
   selectedTable,
   selectedWall,
@@ -713,10 +734,20 @@ export const ReceptionSidePanel = ({
   onChangeWall,
   onRemoveTable,
   onRemoveWall,
+  onReleaseCleaningTables,
+  releaseCleaningBusy,
 }: ReceptionSidePanelProps) => {
   return (
     <aside className="flex min-h-0 w-72 shrink-0 flex-col overflow-y-auto border-l border-slate-50 bg-canvas-white p-4 lg:w-80 lg:p-5">
-      {selectedWall && editMode ? (
+      {loading ? (
+        <ReceptionPanelSkeleton />
+      ) : error ? (
+        <LoadErrorState
+          icon={ClipboardList}
+          title="Resumen no disponible"
+          description="No se pudieron cargar las mesas de la sala."
+        />
+      ) : selectedWall && editMode ? (
         <WallDetail
           wall={selectedWall}
           onClearSelection={onClearSelection}
@@ -737,7 +768,11 @@ export const ReceptionSidePanel = ({
           onRemoveTable={onRemoveTable}
         />
       ) : (
-        <GlobalOverview tables={tables} />
+        <GlobalOverview
+          tables={tables}
+          onReleaseCleaningTables={onReleaseCleaningTables}
+          releaseCleaningBusy={releaseCleaningBusy}
+        />
       )}
     </aside>
   );

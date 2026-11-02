@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type TransitionEvent } from "react";
 import { ConciergeBell, ReceiptEuro, X } from "lucide-react";
 import {
-  ALL_CUSTOMER_ORDER_STATUSES,
   CUSTOMER_ORDER_STATUS_ICONS,
   CUSTOMER_ORDER_STATUS_LABELS,
   CUSTOMER_ORDER_STATUS_TEXT,
@@ -13,7 +12,6 @@ import { ConfirmModal } from "../ui/ConfirmModal";
 import { useToast } from "../ui/useToast";
 import type { CartLine } from "./CartSheet";
 
-/** @deprecated Preferir CustomerOrderStatus de constants/orderStatus */
 export type OrderStatus = CustomerOrderStatus;
 
 export type SentOrder = {
@@ -42,8 +40,6 @@ const formatPrice = (price: number) =>
     currency: "EUR",
   });
 
-const STATUS_CYCLE = ALL_CUSTOMER_ORDER_STATUSES;
-
 export const OrdersHistorySheet = ({
   open,
   onClose,
@@ -58,17 +54,8 @@ export const OrdersHistorySheet = ({
   const [confirmBillOpen, setConfirmBillOpen] = useState(false);
   const [billRequested, setBillRequested] = useState(false);
   const [billLoading, setBillLoading] = useState(false);
-  // TODO: eliminar cuando el servidor actualice el estado del pedido en tiempo real
-  const [statusOverrides, setStatusOverrides] = useState<
-    Record<string, OrderStatus>
-  >({});
 
-  const displayOrders = orders.map((order) => ({
-    ...order,
-    status: statusOverrides[order.id] ?? order.status,
-  }));
-
-  const totalAcumulado = displayOrders.reduce(
+  const totalAcumulado = orders.reduce(
     (sum, order) =>
       sum +
       order.items.reduce(
@@ -79,8 +66,7 @@ export const OrdersHistorySheet = ({
   );
 
   const allServed =
-    displayOrders.length > 0 &&
-    displayOrders.every((order) => order.status === "servido");
+    orders.length > 0 && orders.every((order) => order.status === "servido");
   const canRequestBill = allServed && !billRequested && !billLoading;
 
   const confirmBillOpenRef = useRef(confirmBillOpen);
@@ -91,18 +77,10 @@ export const OrdersHistorySheet = ({
     setEntered(false);
   };
 
-  // TODO: temporal para probar UI de estados; eliminar al integrar el servidor
-  const cycleOrderStatus = (orderId: string, current: OrderStatus) => {
-    const next =
-      STATUS_CYCLE[(STATUS_CYCLE.indexOf(current) + 1) % STATUS_CYCLE.length];
-    setStatusOverrides((prev) => ({ ...prev, [orderId]: next }));
-  };
-
   if (open && !visible) {
     setVisible(true);
   }
 
-  // Cierre externo (atrás del navegador): ajusta estado al render, sin effect
   if (!open && visible && entered) {
     setEntered(false);
   }
@@ -129,7 +107,6 @@ export const OrdersHistorySheet = ({
     beginCloseRef.current = beginClose;
   });
 
-  // El atrás cierra primero la confirmación, igual que en el carrito
   useEffect(() => {
     if (!registerBackHandler) return;
 
@@ -214,7 +191,6 @@ export const OrdersHistorySheet = ({
         <ReceiptEdge position="top" />
 
         <div className="flex max-h-[min(65dvh,520px)] flex-col overflow-hidden bg-canvas-white">
-          {/* Cabecera */}
           <div className="flex shrink-0 items-center justify-between gap-3 px-5 pt-4 pb-3">
             <h2
               id="orders-history-title"
@@ -234,17 +210,16 @@ export const OrdersHistorySheet = ({
 
           <div className="mx-5 border-t border-slate-50" />
 
-          {/* Lista de pedidos */}
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
-            {displayOrders.length === 0 ? (
+            {orders.length === 0 ? (
               <p className="py-6 text-center text-[13px] text-text-muted">
                 Aún no has enviado ningún pedido.
               </p>
             ) : (
               <ul className="flex flex-col">
-                {displayOrders.map((order, index) => {
+                {orders.map((order, index) => {
                   const StatusIcon = CUSTOMER_ORDER_STATUS_ICONS[order.status];
-                  const isLast = index === displayOrders.length - 1;
+                  const isLast = index === orders.length - 1;
 
                   return (
                     <li
@@ -257,20 +232,14 @@ export const OrdersHistorySheet = ({
                         <h3 className="min-w-0 text-[13px] font-semibold text-text-main">
                           Pedido {order.number} - {formatAppTime(order.sentAt)}
                         </h3>
-                        {/* TODO: temporal — quitar onClick al recibir estados del servidor */}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            cycleOrderStatus(order.id, order.status)
-                          }
-                          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-50 bg-canvas-muted px-2.5 py-0.5 text-[11px] font-bold text-text-main transition-transform active:scale-95"
-                        >
+                        {/* TODO: actualizar status por Socket.io sin recargar */}
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-50 bg-canvas-muted px-2.5 py-0.5 text-[11px] font-bold text-text-main">
                           <StatusIcon
                             className={`size-3.5 ${CUSTOMER_ORDER_STATUS_TEXT[order.status]}`}
                             strokeWidth={2.4}
                           />
                           {CUSTOMER_ORDER_STATUS_LABELS[order.status]}
-                        </button>
+                        </span>
                       </div>
 
                       <ul className="mt-2 flex flex-col gap-1">
@@ -295,7 +264,6 @@ export const OrdersHistorySheet = ({
             )}
           </div>
 
-          {/* Pie: total y solicitar cuenta */}
           <div className="shrink-0 border-t border-slate-50 px-5 pt-3 pb-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <span className="text-[13px] font-bold text-text-main">

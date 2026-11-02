@@ -31,7 +31,7 @@ export const WaiterNotificationItem = ({
       <button
         type="button"
         onClick={() => onOpen(notification)}
-        className={`flex w-full cursor-pointer items-center gap-3 rounded-[12px] px-3 py-3 text-left transition-[background-color,transform] duration-300 active:scale-[0.98] ${
+        className={`flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-left transition-[background-color,transform] duration-300 active:scale-[0.98] ${
           unread ? "bg-canvas-white shadow-sm" : "bg-canvas-muted/60"
         }`}
       >
@@ -47,14 +47,18 @@ export const WaiterNotificationItem = ({
           <div className="flex items-center gap-2">
             <p
               className={`truncate text-[14px] transition-colors duration-300 ${
-                unread ? "font-black text-text-main" : "font-semibold text-slate-100"
+                unread
+                  ? "font-black text-text-main"
+                  : "font-semibold text-slate-100"
               }`}
             >
               {title}
             </p>
             <span
               className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold transition-colors duration-300 ${
-                unread ? "bg-cacao-300 text-white" : "bg-slate-50 text-slate-100"
+                unread
+                  ? "bg-cacao-300 text-white"
+                  : "bg-slate-50 text-slate-100"
               }`}
             >
               {notification.tableLabel}
@@ -79,7 +83,10 @@ export const WaiterNotificationItem = ({
             aria-label="Sin leer"
           />
         ) : (
-          <ChevronRight className="size-4 shrink-0 text-slate-100" aria-hidden />
+          <ChevronRight
+            className="size-4 shrink-0 text-slate-100"
+            aria-hidden
+          />
         )}
       </button>
     </li>

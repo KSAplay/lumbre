@@ -18,6 +18,8 @@ const FALLBACK_TICKET_HEIGHT = 300;
 const ROW_GAP = 44;
 const PADDING_TOP = 44;
 const PADDING_BOTTOM = 24;
+/** Hueco lateral para que el `ring-4` de incidencias no se recorte con overflow */
+const PADDING_X = 8;
 const STAGGER_MS = 70;
 const MAX_STAGGER_STEPS = 8;
 const SHIFT_MS = 480;
@@ -112,7 +114,7 @@ export const KitchenTicketBoard = ({
 
     const applySize = (width: number, height: number) => {
       setRowHeight(computeRowHeight(height));
-      setColumns(computeColumns(width));
+      setColumns(computeColumns(Math.max(0, width - PADDING_X * 2)));
     };
 
     applySize(board.clientWidth, board.clientHeight);
@@ -178,6 +180,8 @@ export const KitchenTicketBoard = ({
                 rowGap: ROW_GAP,
                 paddingTop: PADDING_TOP,
                 paddingBottom: PADDING_BOTTOM,
+                paddingLeft: PADDING_X,
+                paddingRight: PADDING_X,
               }}
             >
               {pageTickets.map((ticket) => {

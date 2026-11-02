@@ -24,7 +24,8 @@ import {
 } from "../../components/customer/OrdersHistorySheet";
 import { ConfirmModal } from "../../components/ui/ConfirmModal";
 import { MarqueeText } from "../../components/ui/MarqueeText";
-import { getMenu } from "../../services/orderService";
+import { mediaUrl } from "../../config/api";
+import { getMenu, getTableRounds } from "../../services/orderService";
 import type { Category, CategoryId, Dish } from "../../types/menu";
 
 type SelectedCategory = CategoryId | "ALL";
@@ -105,15 +106,33 @@ export const CustomerMenuView = () => {
   useEffect(() => {
     let cancelled = false;
 
-    const loadMenu = async () => {
+    const loadMenuAndRounds = async () => {
       setMenuLoading(true);
       setMenuError(false);
 
       try {
-        const data = await getMenu();
+        const [menu, rounds] = await Promise.all([
+          getMenu(),
+          getTableRounds(tableId ?? ""),
+        ]);
         if (cancelled) return;
-        setCategories(data.categories);
-        setDishes(data.dishes);
+        setCategories(menu.categories);
+        setDishes(menu.dishes);
+        setSentOrders(
+          rounds.map((round) => ({
+            id: round.id,
+            number: round.number,
+            sentAt: round.sentAt,
+            status: round.status,
+            note: round.note,
+            items: round.items.map((item) => ({
+              dishId: item.dishId,
+              name: item.name,
+              quantity: item.quantity,
+              price: item.price,
+            })),
+          })),
+        );
       } catch {
         if (!cancelled) setMenuError(true);
       } finally {
@@ -121,11 +140,11 @@ export const CustomerMenuView = () => {
       }
     };
 
-    void loadMenu();
+    void loadMenuAndRounds();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [tableId]);
 
   /*
    * Candado simple: una sola entrada fantasma.
@@ -642,7 +661,7 @@ const DishCard = ({
         </div>
       ) : (
         <img
-          src={dish.imageUrl}
+          src={mediaUrl(dish.imageUrl)}
           alt=""
           onError={() => setImageFailed(true)}
           className="h-full w-25 shrink-0 object-cover"

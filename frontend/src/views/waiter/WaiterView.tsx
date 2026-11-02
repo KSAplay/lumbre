@@ -1,39 +1,47 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import {
   BellOff,
-  BellRing,
   CheckCheck,
   CircleCheck,
   ClipboardCheck,
+  ClipboardX,
+  LayoutGrid,
   Lock,
   LogOut,
-  Plus,
+  UtensilsCrossed,
   X,
 } from "lucide-react";
 import { ManualOrderPanel } from "../../components/waiter/ManualOrderPanel";
 import { PendingOrderCard } from "../../components/waiter/PendingOrderCard";
 import { WaiterNotificationItem } from "../../components/waiter/WaiterNotificationItem";
+import {
+  NotificationsSkeleton,
+  PendingOrdersSkeleton,
+  WaiterTablesSkeleton,
+} from "../../components/waiter/WaiterSkeletons";
 import { WaiterTabBar } from "../../components/waiter/WaiterTabBar";
 import { WaiterTableSheet } from "../../components/waiter/WaiterTableSheet";
 import { WaiterTablesPanel } from "../../components/waiter/WaiterTablesPanel";
 import { ConfirmModal } from "../../components/ui/ConfirmModal";
 import { LiveDateTime } from "../../components/ui/LiveDateTime";
+import { LoadErrorState } from "../../components/ui/LoadErrorState";
 import { StaffShell } from "../../components/ui/StaffShell";
 import { UserMenu, type UserMenuItem } from "../../components/ui/UserMenu";
 import { useToast } from "../../components/ui/useToast";
-import { WAITER_NOTIFICATIONS } from "../../constants/waiterNotifications";
+import { clearStaffToken } from "../../config/api";
 import { WAITER_ACTION_NEXT_STATUS } from "../../constants/waiterTableActions";
-import { createWaiterDemoTables } from "../../data/mockTables";
 import {
-  INITIAL_PENDING_ORDER_COUNT,
-  createInitialPendingOrders,
-  createInitialWaiterNotifications,
-  createRandomPendingOrder,
-  createRandomWaiterNotification,
-} from "../../data/mockWaiterOrders";
-import { updateTableStatus } from "../../services/tableService";
-import { confirmOrder, rejectOrder } from "../../services/waiterService";
+  getFloorPlan,
+  updateTableStatus,
+} from "../../services/tableService";
+import {
+  confirmOrder,
+  getPendingOrders,
+  getWaiterNotifications,
+  markNotificationRead,
+  rejectOrder,
+} from "../../services/waiterService";
 import type { TableNodeData, TableStatus } from "../../types/table";
 import type {
   PendingOrder,
@@ -58,13 +66,13 @@ export const WaiterView = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [tab, setTab] = useState<WaiterTab>("orders");
-  const [tables, setTables] = useState<TableNodeData[]>(createWaiterDemoTables);
-  const [orders, setOrders] = useState<PendingOrder[]>(
-    createInitialPendingOrders,
-  );
+  const [tables, setTables] = useState<TableNodeData[]>([]);
+  const [orders, setOrders] = useState<PendingOrder[]>([]);
   const [notifications, setNotifications] = useState<WaiterNotification[]>(
-    createInitialWaiterNotifications,
+    [],
   );
+  const [dataLoading, setDataLoading] = useState(true);
+  const [dataError, setDataError] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
   const [leavingOrderIds, setLeavingOrderIds] = useState<Set<string>>(
@@ -76,8 +84,35 @@ export const WaiterView = () => {
   const [manualTableId, setManualTableId] = useState<string | null>(null);
   const [notificationFilter, setNotificationFilter] =
     useState<NotificationFilter>("all");
-  // TODO: borrar junto con el botón flotante de demo
-  const nextOrderNumberRef = useRef(INITIAL_PENDING_ORDER_COUNT + 1);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSala = async () => {
+      setDataLoading(true);
+      setDataError(false);
+      try {
+        const [floor, pending, avisos] = await Promise.all([
+          getFloorPlan(),
+          getPendingOrders(),
+          getWaiterNotifications(),
+        ]);
+        if (cancelled) return;
+        setTables(floor.tables);
+        setOrders(pending.orders);
+        setNotifications(avisos.notifications);
+      } catch {
+        if (!cancelled) setDataError(true);
+      } finally {
+        if (!cancelled) setDataLoading(false);
+      }
+    };
+
+    void loadSala();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const id = window.setInterval(() => setNowMs(Date.now()), 1000);
@@ -130,41 +165,10 @@ export const WaiterView = () => {
     [],
   );
 
-  const pushNotification = useCallback(
-    (notification: WaiterNotification) => {
-      const config = WAITER_NOTIFICATIONS[notification.type];
-      setNotifications((prev) => [notification, ...prev]);
-      showToast({
-        message: `${config.label} · ${notification.tableLabel}`,
-        icon: <BellRing className="size-4" strokeWidth={2.5} />,
-        tone: config.toastTone,
-      });
-      if ("vibrate" in navigator) navigator.vibrate([120, 60, 120]);
-    },
-    [showToast],
-  );
-
-  // TODO: borrar este handler junto con el botón flotante; los pedidos y avisos llegarán por Socket.io
-  const handleSimulateIncoming = () => {
-    if (Math.random() < 0.5) {
-      const order = createRandomPendingOrder(nextOrderNumberRef.current);
-      nextOrderNumberRef.current += 1;
-      setOrders((prev) => [...prev, order]);
-      pushNotification({
-        id: `notif-${order.id}`,
-        type: "nuevo_pedido",
-        tableId: order.tableId,
-        tableLabel: order.tableLabel,
-        message: "Nueva ronda pendiente de confirmar.",
-        createdAt: new Date(),
-        read: false,
-      });
-      return;
-    }
-    pushNotification(createRandomWaiterNotification());
-  };
-
   const markTableOrderNotificationsRead = (tableId: string) => {
+    const unread = notifications.filter(
+      (n) => n.type === "nuevo_pedido" && n.tableId === tableId && !n.read,
+    );
     setNotifications((prev) =>
       prev.map((n) =>
         n.type === "nuevo_pedido" && n.tableId === tableId && !n.read
@@ -172,6 +176,9 @@ export const WaiterView = () => {
           : n,
       ),
     );
+    for (const n of unread) {
+      void markNotificationRead(n.id).catch(() => undefined);
+    }
   };
 
   const updateOrderLine = (orderId: string, dishId: number, delta: number) => {
@@ -301,9 +308,12 @@ export const WaiterView = () => {
   };
 
   const handleOpenNotification = (notification: WaiterNotification) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n)),
-    );
+    if (!notification.read) {
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n)),
+      );
+      void markNotificationRead(notification.id).catch(() => undefined);
+    }
     if (notification.type === "nuevo_pedido") {
       setTab("orders");
       return;
@@ -313,9 +323,12 @@ export const WaiterView = () => {
   };
 
   const handleMarkAllRead = () => {
-    setNotifications((prev) =>
-      prev.some((n) => !n.read) ? prev.map((n) => ({ ...n, read: true })) : prev,
-    );
+    const unread = notifications.filter((n) => !n.read);
+    if (unread.length === 0) return;
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    for (const n of unread) {
+      void markNotificationRead(n.id).catch(() => undefined);
+    }
   };
 
   const userMenuItems: UserMenuItem[] = [
@@ -323,7 +336,10 @@ export const WaiterView = () => {
       id: "lock",
       label: "Bloquear Pantalla",
       icon: Lock,
-      onSelect: () => navigate("/login"),
+      onSelect: () => {
+        clearStaffToken();
+        navigate("/login");
+      },
     },
     {
       id: "end-shift",
@@ -337,7 +353,10 @@ export const WaiterView = () => {
         confirmLabel: "Finalizar",
       },
       // TODO: cerrar el turno del camarero en el backend antes de volver al login
-      onSelect: () => navigate("/login"),
+      onSelect: () => {
+        clearStaffToken();
+        navigate("/login");
+      },
     },
   ];
 
@@ -367,7 +386,15 @@ export const WaiterView = () => {
           </div>
         </div>
 
-        {orders.length === 0 ? (
+        {dataLoading ? (
+          <PendingOrdersSkeleton />
+        ) : dataError ? (
+          <LoadErrorState
+            icon={ClipboardX}
+            title="No se pudieron cargar los pedidos"
+            className="min-h-64"
+          />
+        ) : orders.length === 0 ? (
           <div className="flex min-h-64 flex-col items-center justify-center text-center">
             <div className="flex size-18 items-center justify-center rounded-full bg-canvas-muted text-text-muted">
               <ClipboardCheck className="size-9" strokeWidth={1.75} />
@@ -407,24 +434,44 @@ export const WaiterView = () => {
       <div
         className={tab === "tables" ? "flex min-h-0 flex-1 flex-col" : "hidden"}
       >
-        <WaiterTablesPanel
-          tables={tables}
-          nowMs={nowMs}
-          alertTableIds={alertTableIds}
-          onSelectTable={setSheetTableId}
-        />
+        {dataLoading ? (
+          <WaiterTablesSkeleton />
+        ) : dataError ? (
+          <LoadErrorState
+            icon={LayoutGrid}
+            title="No se pudieron cargar las mesas"
+            className="flex-1"
+          />
+        ) : (
+          <WaiterTablesPanel
+            tables={tables}
+            nowMs={nowMs}
+            alertTableIds={alertTableIds}
+            onSelectTable={setSheetTableId}
+          />
+        )}
       </div>
 
       {/* Comanda manual: se mantiene montada para no perder la selección al cambiar de pestaña */}
       <div
         className={tab === "manual" ? "flex min-h-0 flex-1 flex-col" : "hidden"}
       >
-        <ManualOrderPanel
-          tables={orderableTables}
-          selectedTableId={effectiveManualTableId}
-          onSelectTable={setManualTableId}
-          onOrderSent={handleManualOrderSent}
-        />
+        {dataError ? (
+          <LoadErrorState
+            icon={UtensilsCrossed}
+            title="No se pudo preparar la comanda"
+            description="No se cargaron las mesas de la sala. Revisa tu conexión e inténtalo de nuevo."
+            className="flex-1"
+          />
+        ) : (
+          <ManualOrderPanel
+            tables={orderableTables}
+            tablesLoading={dataLoading}
+            selectedTableId={effectiveManualTableId}
+            onSelectTable={setManualTableId}
+            onOrderSent={handleManualOrderSent}
+          />
+        )}
       </div>
 
       {/* Avisos */}
@@ -467,7 +514,15 @@ export const WaiterView = () => {
           </button>
         </div>
 
-        {visibleNotifications.length === 0 ? (
+        {dataLoading ? (
+          <NotificationsSkeleton />
+        ) : dataError ? (
+          <LoadErrorState
+            icon={BellOff}
+            title="No se pudieron cargar los avisos"
+            className="min-h-64"
+          />
+        ) : visibleNotifications.length === 0 ? (
           <div className="flex min-h-64 flex-col items-center justify-center text-center">
             <div className="flex size-18 items-center justify-center rounded-full bg-canvas-muted text-text-muted">
               <BellOff className="size-9" strokeWidth={1.75} />
@@ -501,18 +556,6 @@ export const WaiterView = () => {
         unreadCount={unreadCount}
         onChange={setTab}
       />
-
-      {/* TODO: borrar este botón flotante de demo; pedidos y avisos llegarán por Socket.io */}
-      {tab !== "manual" && !sheetTable && (
-        <button
-          type="button"
-          onClick={handleSimulateIncoming}
-          aria-label="Simular pedido o aviso entrante"
-          className="absolute right-4 bottom-24 z-30 flex size-13 cursor-pointer items-center justify-center rounded-full bg-terracotta-300 text-white shadow-lg transition-colors hover:bg-terracotta-400 active:scale-95 md:right-6"
-        >
-          <Plus className="size-6" strokeWidth={2.5} />
-        </button>
-      )}
 
       <WaiterTableSheet
         table={sheetTable}

@@ -10,19 +10,28 @@ import {
   SquareText,
   UtensilsCrossed,
 } from "lucide-react";
+import { mediaUrl } from "../../config/api";
 import { TABLE_STATUS_DOT } from "../../constants/tableStatus";
+import { formatTableLabel } from "../../utils/mockHydrate";
 import { getMenu } from "../../services/orderService";
 import { sendManualOrder } from "../../services/waiterService";
 import type { Category, CategoryId, Dish } from "../../types/menu";
 import type { TableNodeData } from "../../types/table";
 import type { WaiterOrderLine } from "../../types/waiter";
 import { ConfirmModal } from "../ui/ConfirmModal";
+import { LoadErrorState } from "../ui/LoadErrorState";
 import { MarqueeText } from "../ui/MarqueeText";
 import { useToast } from "../ui/useToast";
+import {
+  CompactDishListSkeleton,
+  TableChipsSkeleton,
+} from "./WaiterSkeletons";
 
 type ManualOrderPanelProps = {
   /** Mesas en las que se puede pedir (ocupadas) */
   tables: TableNodeData[];
+  /** La sala aún se está cargando */
+  tablesLoading?: boolean;
   selectedTableId: string | null;
   onSelectTable: (tableId: string) => void;
   /** Se llama cuando el servidor acepta la comanda */
@@ -39,11 +48,11 @@ const formatPrice = (price: number) =>
     currency: "EUR",
   });
 
-const tableLabelOf = (table: TableNodeData) =>
-  `Mesa ${String(table.number).padStart(2, "0")}`;
+const tableLabelOf = (table: TableNodeData) => formatTableLabel(table.number);
 
 export const ManualOrderPanel = ({
   tables,
+  tablesLoading = false,
   selectedTableId,
   onSelectTable,
   onOrderSent,
@@ -172,7 +181,9 @@ export const ManualOrderPanel = ({
           <p className="mb-1.5 text-[11px] font-semibold tracking-wide text-text-muted uppercase">
             Mesa
           </p>
-          {tables.length === 0 ? (
+          {tablesLoading ? (
+            <TableChipsSkeleton />
+          ) : tables.length === 0 ? (
             <p className="rounded-lg bg-canvas-white px-3 py-2.5 text-[13px] text-text-muted shadow-sm">
               No hay mesas ocupadas. Recepción debe sentar a los comensales.
             </p>
@@ -263,22 +274,21 @@ export const ManualOrderPanel = ({
           aria-busy={menuLoading}
         >
           {menuLoading ? (
-            <ul className="flex flex-col gap-2" aria-label="Cargando carta">
-              {Array.from({ length: 6 }, (_, i) => (
-                <li
-                  key={i}
-                  className="h-14 animate-pulse rounded-[9px] bg-canvas-white/70"
-                />
-              ))}
-            </ul>
-          ) : menuError || filteredDishes.length === 0 ? (
+            <CompactDishListSkeleton />
+          ) : menuError ? (
+            <LoadErrorState
+              icon={UtensilsCrossed}
+              title="No se pudo cargar la carta"
+              className="min-h-40"
+            />
+          ) : filteredDishes.length === 0 ? (
             <div className="flex h-full min-h-40 flex-col items-center justify-center gap-2 text-center">
               <UtensilsCrossed
                 className="size-12 text-text-main"
                 strokeWidth={1.4}
               />
               <p className="text-sm font-bold text-text-main">
-                {menuError ? "No se pudo cargar la carta" : "Sin resultados"}
+                Sin resultados
               </p>
             </div>
           ) : (
@@ -412,7 +422,7 @@ const CompactDishRow = ({
         </div>
       ) : (
         <img
-          src={dish.imageUrl}
+          src={mediaUrl(dish.imageUrl)}
           alt=""
           onError={() => setImageFailed(true)}
           className="h-full w-14 shrink-0 object-cover"

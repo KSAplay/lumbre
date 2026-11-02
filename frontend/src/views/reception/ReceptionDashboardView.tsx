@@ -6,8 +6,10 @@ import {
   Eraser,
   Lock,
   LogOut,
+  MapPinOff,
   Monitor,
   Pencil,
+  X,
 } from "lucide-react";
 import { FloorTable } from "../../components/reception/FloorTable";
 import { FloorWall } from "../../components/reception/FloorWall";
@@ -15,15 +17,22 @@ import {
   ReceptionSidePanel,
   type TablePanelActionKey,
 } from "../../components/reception/ReceptionSidePanel";
+import { ReceptionFloorSkeleton } from "../../components/reception/ReceptionSkeletons";
 import { TablePlusIcon } from "../../components/reception/TablePlusIcon";
 import { ConfirmModal } from "../../components/ui/ConfirmModal";
 import { LiveDateTime } from "../../components/ui/LiveDateTime";
+import { LoadErrorState } from "../../components/ui/LoadErrorState";
 import { StaffShell } from "../../components/ui/StaffShell";
 import { UserMenu, type UserMenuItem } from "../../components/ui/UserMenu";
+import { useToast } from "../../components/ui/useToast";
+import { clearStaffToken } from "../../config/api";
 import { maxGuestsForShape, VIEW_GRID_PX } from "../../constants/floorPlan";
-import { MOCK_TABLES } from "../../data/mockTables";
-import { MOCK_WALLS } from "../../data/mockWalls";
-import { updateTableStatus } from "../../services/tableService";
+import {
+  getFloorPlan,
+  releaseCleaningTables,
+  saveFloorPlan,
+  updateTableStatus,
+} from "../../services/tableService";
 import type {
   FloorSelection,
   FloorWallData,
@@ -44,53 +53,6 @@ const ACTION_NEXT_STATUS: Record<TablePanelActionKey, TableStatus> = {
   ready: "libre",
 };
 
-/**
- * TODO: eliminar este bloque cuando el camarero y el backend actualicen los estados.
- * Simulación temporal del servicio: cada 10 s la mesa avanza al siguiente estado
- * (Decidiendo → Esperando → Servido → Cuenta → Limpiando → Libre).
- */
-const AUTO_STATUS_MS = 10_000;
-
-const AUTO_NEXT_STATUS: Partial<Record<TableStatus, TableStatus>> = {
-  decidiendo: "esperando",
-  esperando: "servido",
-  servido: "cuenta",
-  cuenta: "limpiando",
-  limpiando: "libre",
-};
-
-/**
- * Avanza al siguiente estado las mesas que llevan 10 s en un estado del servicio.
- *
- * Al llegar a Limpiando o Libre se vacían los comensales, igual que con las
- * acciones manuales del panel.
- *
- * @param tables - Mesas del plano, de todas las zonas.
- * @param nowMs - Instante actual en milisegundos.
- * @returns El mismo array si ninguna cumple el tiempo; si no, la lista ya avanzada.
- */
-function advanceReceptionTables(
-  tables: TableNodeData[],
-  nowMs: number,
-): TableNodeData[] {
-  let changed = false;
-  const nextTables = tables.map((table) => {
-    const nextStatus = AUTO_NEXT_STATUS[table.status];
-    if (!nextStatus || nowMs - table.statusChangedAt < AUTO_STATUS_MS) {
-      return table;
-    }
-    changed = true;
-    const clearsGuests = nextStatus === "limpiando" || nextStatus === "libre";
-    return {
-      ...table,
-      status: nextStatus,
-      statusChangedAt: nowMs,
-      guestCount: clearsGuests ? 0 : table.guestCount,
-    };
-  });
-  return changed ? nextTables : tables;
-}
-
 const ZONE_TABS: { id: ZoneId; label: string }[] = [
   { id: "interior", label: "Interior" },
   { id: "terraza", label: "Terraza" },
@@ -103,8 +65,11 @@ function shapeForGuests(zone: ZoneId, guests: number) {
 
 export const ReceptionDashboardView = () => {
   const navigate = useNavigate();
-  const [tables, setTables] = useState<TableNodeData[]>(MOCK_TABLES);
-  const [walls, setWalls] = useState<FloorWallData[]>(MOCK_WALLS);
+  const { showToast } = useToast();
+  const [tables, setTables] = useState<TableNodeData[]>([]);
+  const [walls, setWalls] = useState<FloorWallData[]>([]);
+  const [floorLoading, setFloorLoading] = useState(true);
+  const [floorError, setFloorError] = useState(false);
   const [zone, setZone] = useState<ZoneId>("interior");
   const [selection, setSelection] = useState<FloorSelection | null>(null);
   const [editMode, setEditMode] = useState(false);
@@ -112,9 +77,15 @@ export const ReceptionDashboardView = () => {
     () => new Set(),
   );
   const [actionBusy, setActionBusy] = useState(false);
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [releaseBusy, setReleaseBusy] = useState(false);
   const [clearZoneOpen, setClearZoneOpen] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const mapRef = useRef<HTMLDivElement>(null);
+  const baselineRef = useRef<{
+    tables: TableNodeData[];
+    walls: FloorWallData[];
+  } | null>(null);
   const zoneIndex = ZONE_TABS.findIndex((t) => t.id === zone);
 
   const zoneTables = useMemo(
@@ -138,12 +109,31 @@ export const ReceptionDashboardView = () => {
       : null;
 
   useEffect(() => {
-    const id = window.setInterval(() => {
-      const now = Date.now();
-      setNowMs(now);
-      // TODO: eliminar junto con advanceReceptionTables al integrar al camarero.
-      setTables((prev) => advanceReceptionTables(prev, now));
-    }, 1000);
+    let cancelled = false;
+
+    const loadFloor = async () => {
+      setFloorLoading(true);
+      setFloorError(false);
+      try {
+        const data = await getFloorPlan();
+        if (cancelled) return;
+        setTables(data.tables);
+        setWalls(data.walls);
+      } catch {
+        if (!cancelled) setFloorError(true);
+      } finally {
+        if (!cancelled) setFloorLoading(false);
+      }
+    };
+
+    void loadFloor();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, []);
 
@@ -343,18 +333,88 @@ export const ReceptionDashboardView = () => {
     setSelection({ kind: "wall", id: newWall.id });
   };
 
-  const toggleEditMode = () => {
-    setEditMode((prev) => {
-      if (!prev) clearSelection();
-      return !prev;
-    });
+  const enterEditMode = () => {
+    baselineRef.current = {
+      tables: structuredClone(tables),
+      walls: structuredClone(walls),
+    };
+    clearSelection();
+    setEditMode(true);
+  };
+
+  const cancelEditMode = () => {
+    const baseline = baselineRef.current;
+    if (baseline) {
+      setTables(baseline.tables);
+      setWalls(baseline.walls);
+    }
+    baselineRef.current = null;
+    clearSelection();
+    setEditMode(false);
+  };
+
+  const saveEditMode = async () => {
+    if (saveBusy) return;
+    setSaveBusy(true);
+    try {
+      await saveFloorPlan(tables, walls);
+      baselineRef.current = null;
+      clearSelection();
+      setEditMode(false);
+      showToast({
+        message: "Plano guardado correctamente.",
+        tone: "green",
+      });
+    } catch {
+      showToast({
+        message: "No se pudo guardar el plano. Inténtalo de nuevo.",
+        tone: "red",
+      });
+    } finally {
+      setSaveBusy(false);
+    }
+  };
+
+  const handleReleaseCleaning = async () => {
+    if (releaseBusy) return;
+    setReleaseBusy(true);
+    try {
+      await releaseCleaningTables();
+      setTables((prev) =>
+        prev.map((t) =>
+          t.status === "limpiando"
+            ? {
+                ...t,
+                status: "libre",
+                guestCount: 0,
+                statusChangedAt: Date.now(),
+                reservation: undefined,
+              }
+            : t,
+        ),
+      );
+      showToast({
+        message: "Mesas en limpieza liberadas.",
+        tone: "green",
+      });
+    } catch {
+      showToast({
+        message: "No se pudieron liberar las mesas.",
+        tone: "red",
+      });
+    } finally {
+      setReleaseBusy(false);
+    }
   };
 
   const lockItem: UserMenuItem = {
     id: "lock",
     label: "Bloquear Pantalla",
     icon: Lock,
-    onSelect: () => navigate("/login"),
+    onSelect: () => {
+      clearStaffToken();
+      navigate("/login");
+    },
   };
 
   const endShiftItem: UserMenuItem = {
@@ -368,10 +428,11 @@ export const ReceptionDashboardView = () => {
         "Se cerrará el turno de recepción y volverás al inicio de sesión.",
       confirmLabel: "Finalizar",
     },
-    // TODO: sustituir este salto al login por el cierre de turno en el backend.
-    // Hay que pedir el histórico del recepcionista (p. ej. POST /turnos/cerrar)
-    // y navegar a /login solo cuando esa petición termine bien.
-    onSelect: () => navigate("/login"),
+    // TODO: cerrar turno en el backend antes de volver al login
+    onSelect: () => {
+      clearStaffToken();
+      navigate("/login");
+    },
   };
 
   return (
@@ -498,6 +559,15 @@ export const ReceptionDashboardView = () => {
                 />
               )}
 
+              {floorLoading && <ReceptionFloorSkeleton zone={zone} />}
+
+              {floorError && (
+                <LoadErrorState
+                  icon={MapPinOff}
+                  title="No se pudo cargar el plano de sala"
+                />
+              )}
+
               {zoneWalls.map((wall) => (
                 <FloorWall
                   key={wall.id}
@@ -528,6 +598,21 @@ export const ReceptionDashboardView = () => {
                 />
               ))}
             </div>
+
+            {editMode && (
+              <div className="absolute bottom-5 left-5 z-30">
+                <button
+                  type="button"
+                  onClick={cancelEditMode}
+                  disabled={saveBusy}
+                  className="flex size-16 cursor-pointer items-center justify-center rounded-full bg-toast-red text-white shadow-lg ring-1 ring-toast-red/30 transition-transform active:scale-90 disabled:opacity-50"
+                  aria-label="Cancelar edición"
+                  title="Cancelar"
+                >
+                  <X className="size-7" strokeWidth={2.5} />
+                </button>
+              </div>
+            )}
 
             <div className="absolute right-5 bottom-5 z-30 flex flex-col items-center gap-3">
               {editMode && (
@@ -573,8 +658,15 @@ export const ReceptionDashboardView = () => {
 
               <button
                 type="button"
-                onClick={toggleEditMode}
-                className={`flex size-16 cursor-pointer items-center justify-center rounded-full shadow-lg ring-1 transition-transform active:scale-90 ${
+                onClick={() => {
+                  if (editMode) {
+                    void saveEditMode();
+                  } else {
+                    enterEditMode();
+                  }
+                }}
+                disabled={saveBusy || floorLoading || floorError}
+                className={`flex size-16 cursor-pointer items-center justify-center rounded-full shadow-lg ring-1 transition-transform active:scale-90 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 ${
                   editMode
                     ? "bg-table-libre text-white ring-table-libre/30"
                     : "bg-canvas-white text-text-main ring-slate-50"
@@ -595,6 +687,8 @@ export const ReceptionDashboardView = () => {
         </div>
 
         <ReceptionSidePanel
+          loading={floorLoading}
+          error={floorError}
           tables={zoneTables}
           selectedTable={
             selectedTable && selectedTable.zone === zone ? selectedTable : null
@@ -613,6 +707,8 @@ export const ReceptionDashboardView = () => {
           onChangeWall={handleWallChange}
           onRemoveTable={handleRemoveTable}
           onRemoveWall={handleRemoveWall}
+          onReleaseCleaningTables={handleReleaseCleaning}
+          releaseCleaningBusy={releaseBusy}
         />
       </div>
     </StaffShell>
