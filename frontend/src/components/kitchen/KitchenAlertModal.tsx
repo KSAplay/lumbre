@@ -1,10 +1,11 @@
-import { useEffect, useState, type TransitionEvent } from "react";
+import { useEffect } from "react";
 import { Check, TriangleAlert } from "lucide-react";
 import {
   KITCHEN_ALERT_ORDER,
   KITCHEN_ALERTS,
 } from "../../constants/kitchenAlerts";
 import type { KitchenAlertType } from "../../types/kitchen";
+import { useCenterModalMotion } from "../ui/useCenterModalMotion";
 
 type KitchenAlertModalProps = {
   open: boolean;
@@ -16,8 +17,6 @@ type KitchenAlertModalProps = {
   onClose: () => void;
 };
 
-const ANIMATION_MS = 200;
-
 export const KitchenAlertModal = ({
   open,
   subtitle,
@@ -26,29 +25,10 @@ export const KitchenAlertModal = ({
   onClear,
   onClose,
 }: KitchenAlertModalProps) => {
-  const [visible, setVisible] = useState(false);
-  const [entered, setEntered] = useState(false);
-
-  if (open && !visible) {
-    setVisible(true);
-  }
-
-  if (!open && entered) {
-    setEntered(false);
-  }
+  const { mounted, entering, handleAnimationEnd } = useCenterModalMotion(open);
 
   useEffect(() => {
-    if (!open || !visible) return;
-
-    const id = requestAnimationFrame(() => {
-      requestAnimationFrame(() => setEntered(true));
-    });
-
-    return () => cancelAnimationFrame(id);
-  }, [open, visible]);
-
-  useEffect(() => {
-    if (!visible) return;
+    if (!mounted) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -56,17 +36,9 @@ export const KitchenAlertModal = ({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [visible, onClose]);
+  }, [mounted, onClose]);
 
-  if (!visible) return null;
-
-  const handleTransitionEnd = (event: TransitionEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget) return;
-    if (event.propertyName !== "opacity") return;
-    if (!open && !entered) {
-      setVisible(false);
-    }
-  };
+  if (!mounted) return null;
 
   return (
     <div
@@ -76,10 +48,9 @@ export const KitchenAlertModal = ({
       <button
         type="button"
         aria-label="Cerrar incidencias"
-        className={`absolute inset-0 bg-text-main/45 transition-opacity ease-out ${
-          entered ? "opacity-100" : "opacity-0"
+        className={`absolute inset-0 bg-text-main/45 ${
+          entering ? "animate-admin-backdrop-in" : "animate-admin-backdrop-out"
         }`}
-        style={{ transitionDuration: `${ANIMATION_MS}ms` }}
         onClick={onClose}
       />
 
@@ -87,11 +58,10 @@ export const KitchenAlertModal = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="kitchen-alert-title"
-        className={`relative z-10 w-full max-w-2xl overflow-hidden rounded-[18px] bg-canvas-white shadow-lg transition-[opacity,transform] ease-out ${
-          entered ? "scale-100 opacity-100" : "scale-95 opacity-0"
+        className={`relative z-10 w-full max-w-2xl overflow-hidden rounded-[18px] bg-canvas-white shadow-lg ${
+          entering ? "animate-admin-dialog-in" : "animate-admin-dialog-out"
         }`}
-        style={{ transitionDuration: `${ANIMATION_MS}ms` }}
-        onTransitionEnd={handleTransitionEnd}
+        onAnimationEnd={handleAnimationEnd}
       >
         <div className="px-8 pt-7 pb-8">
           <div className="mb-3 flex justify-center text-latte-400">

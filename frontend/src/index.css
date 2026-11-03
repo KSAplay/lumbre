@@ -125,6 +125,56 @@
 
   /* Camarero: contador de pestaña al llegar algo nuevo */
   --animate-badge-pop: badge-pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+
+  /* Backoffice: modal entra frenando y sale acelerando */
+  --animate-admin-dialog-in: admin-dialog-in 220ms cubic-bezier(0.22, 1, 0.36, 1)
+    both;
+  --animate-admin-dialog-out: admin-dialog-out 200ms cubic-bezier(0.4, 0, 1, 1)
+    both;
+  --animate-admin-backdrop-in: admin-backdrop-in 220ms
+    cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-admin-backdrop-out: admin-backdrop-out 200ms
+    cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+@keyframes admin-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes admin-dialog-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+
+@keyframes admin-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes admin-backdrop-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 @keyframes badge-pop {

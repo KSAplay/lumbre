@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type TransitionEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ConciergeBell, ReceiptEuro, X } from "lucide-react";
 import {
   CUSTOMER_ORDER_STATUS_ICONS,
@@ -9,6 +9,7 @@ import {
 import { requestTableBill } from "../../services/orderService";
 import { formatAppTime } from "../../utils/dateTime";
 import { ConfirmModal } from "../ui/ConfirmModal";
+import { useCenterModalMotion } from "../ui/useCenterModalMotion";
 import { useToast } from "../ui/useToast";
 import type { CartLine } from "./CartSheet";
 
@@ -32,8 +33,6 @@ type OrdersHistorySheetProps = {
   registerBackHandler?: (handler: (() => boolean) | null) => void;
 };
 
-const ANIMATION_MS = 220;
-
 const formatPrice = (price: number) =>
   price.toLocaleString("es-ES", {
     style: "currency",
@@ -49,8 +48,7 @@ export const OrdersHistorySheet = ({
   registerBackHandler,
 }: OrdersHistorySheetProps) => {
   const { showToast } = useToast();
-  const [visible, setVisible] = useState(false);
-  const [entered, setEntered] = useState(false);
+  const { mounted, entering, handleAnimationEnd } = useCenterModalMotion(open);
   const [confirmBillOpen, setConfirmBillOpen] = useState(false);
   const [billRequested, setBillRequested] = useState(false);
   const [billLoading, setBillLoading] = useState(false);
@@ -74,30 +72,12 @@ export const OrdersHistorySheet = ({
 
   const beginClose = () => {
     setConfirmBillOpen(false);
-    setEntered(false);
+    onClose();
   };
-
-  if (open && !visible) {
-    setVisible(true);
-  }
-
-  if (!open && visible && entered) {
-    setEntered(false);
-  }
 
   if (!open && confirmBillOpen) {
     setConfirmBillOpen(false);
   }
-
-  useEffect(() => {
-    if (!open || !visible) return;
-
-    const id = requestAnimationFrame(() => {
-      requestAnimationFrame(() => setEntered(true));
-    });
-
-    return () => cancelAnimationFrame(id);
-  }, [open, visible]);
 
   useEffect(() => {
     confirmBillOpenRef.current = confirmBillOpen;
@@ -127,18 +107,7 @@ export const OrdersHistorySheet = ({
     return () => registerBackHandler(null);
   }, [open, registerBackHandler]);
 
-  if (!visible) return null;
-
-  const finishClose = () => {
-    setVisible(false);
-    if (open) onClose();
-  };
-
-  const handleTransitionEnd = (event: TransitionEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget) return;
-    if (event.propertyName !== "opacity") return;
-    if (!entered) finishClose();
-  };
+  if (!mounted) return null;
 
   const handleConfirmBill = async () => {
     setConfirmBillOpen(false);
@@ -169,10 +138,9 @@ export const OrdersHistorySheet = ({
       <button
         type="button"
         aria-label="Cerrar historial de pedidos"
-        className={`absolute inset-0 bg-text-main/45 transition-opacity ease-out ${
-          entered ? "opacity-100" : "opacity-0"
+        className={`absolute inset-0 bg-text-main/45 ${
+          entering ? "animate-admin-backdrop-in" : "animate-admin-backdrop-out"
         }`}
-        style={{ transitionDuration: `${ANIMATION_MS}ms` }}
         onClick={beginClose}
       />
 
@@ -180,13 +148,10 @@ export const OrdersHistorySheet = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="orders-history-title"
-        className={`relative z-10 flex w-full max-w-md flex-col drop-shadow-lg transition-[opacity,transform] ease-out ${
-          entered
-            ? "translate-y-0 scale-100 opacity-100"
-            : "translate-y-3 scale-[0.96] opacity-0"
+        className={`relative z-10 flex w-full max-w-md flex-col drop-shadow-lg ${
+          entering ? "animate-admin-dialog-in" : "animate-admin-dialog-out"
         }`}
-        style={{ transitionDuration: `${ANIMATION_MS}ms` }}
-        onTransitionEnd={handleTransitionEnd}
+        onAnimationEnd={handleAnimationEnd}
       >
         <ReceiptEdge position="top" />
 
@@ -232,7 +197,6 @@ export const OrdersHistorySheet = ({
                         <h3 className="min-w-0 text-[13px] font-semibold text-text-main">
                           Pedido {order.number} - {formatAppTime(order.sentAt)}
                         </h3>
-                        {/* TODO: actualizar status por Socket.io sin recargar */}
                         <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-50 bg-canvas-muted px-2.5 py-0.5 text-[11px] font-bold text-text-main">
                           <StatusIcon
                             className={`size-3.5 ${CUSTOMER_ORDER_STATUS_TEXT[order.status]}`}
