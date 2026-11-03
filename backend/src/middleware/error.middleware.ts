@@ -1,13 +1,22 @@
 import type { ErrorRequestHandler } from "express";
+import multer from "multer";
 
 /**
  * Middleware final de Express: convierte errores no capturados en JSON.
  * Debe registrarse después de las rutas en `app.ts`.
  */
 export const errorMiddleware: ErrorRequestHandler = (err, _req, res, _next) => {
-  /** Imprime el error en la consola. */
   console.error("[error]", err);
-  /** Obtiene el estado del error. */
+
+  if (err instanceof multer.MulterError) {
+    const message =
+      err.code === "LIMIT_FILE_SIZE"
+        ? "La imagen no puede superar 2 MB"
+        : "No se pudo subir la imagen";
+    res.status(400).json({ ok: false, message });
+    return;
+  }
+
   const status =
     typeof err === "object" &&
       err !== null &&
@@ -16,11 +25,9 @@ export const errorMiddleware: ErrorRequestHandler = (err, _req, res, _next) => {
       ? (err as { status: number }).status
       : 500;
 
-  /** Obtiene el mensaje del error. */
   const message =
     err instanceof Error ? err.message : "Error interno del servidor";
 
-  /** Responde con el error. */
   res.status(status).json({
     ok: false,
     message,

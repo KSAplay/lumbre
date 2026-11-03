@@ -39,6 +39,8 @@ const orderItemSchema = new Schema(
     price: { type: Number, required: true, min: 0 },
     quantity: { type: Number, required: true, min: 1 },
     done: { type: Boolean, default: false },
+    /** Se marca cuando el plato se oculta en carta con la ronda aún en cocina. */
+    soldOut: { type: Boolean, default: false },
   },
   { _id: true },
 );
@@ -68,6 +70,8 @@ const orderSchema = new Schema(
     },
     sentAt: { type: Date, required: true, default: Date.now },
     completedAt: { type: Date, default: undefined },
+    /** Momento en que la mesa se cobró; la ronda cuenta como recaudación desde aquí. */
+    paidAt: { type: Date, default: undefined, index: true },
     items: {
       type: [orderItemSchema],
       required: true,

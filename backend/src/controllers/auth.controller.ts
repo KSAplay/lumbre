@@ -41,5 +41,10 @@ export async function loginWithPin(req: Request, res: Response): Promise<void> {
     role: matched.role,
     redirectPath: redirectPathForRole(matched.role),
     token,
+    staff: {
+      id: String(matched._id),
+      name: matched.name,
+      ...(matched.imageUrl ? { imageUrl: matched.imageUrl } : {}),
+    },
   });
 }

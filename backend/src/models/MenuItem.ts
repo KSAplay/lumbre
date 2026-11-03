@@ -30,7 +30,7 @@ const menuItemSchema = new Schema(
       index: true,
     },
     description: { type: String, required: true, trim: true },
-    imageUrl: { type: String, required: true, trim: true },
+    imageUrl: { type: String, trim: true, default: "" },
     isAvailable: { type: Boolean, default: true },
     options: { type: [dishOptionSchema], default: undefined },
   },

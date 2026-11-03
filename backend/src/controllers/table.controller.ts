@@ -8,6 +8,18 @@ import {
 } from "../models/Table.js";
 import { Zone } from "../models/Zone.js";
 import { HttpError } from "../utils/httpError.js";
+import {
+  ensureTableSession,
+  OCCUPIED_STATUSES,
+  registerTablePayment,
+} from "../utils/tableSession.js";
+import {
+  FLOOR_ROOMS,
+  orderRooms,
+  SOCKET_EVENTS,
+  SOCKET_ROOMS,
+} from "../sockets/events.js";
+import { emitTo } from "../sockets/io.js";
 
 type FloorTablePayload = {
   id: string;
@@ -212,7 +224,9 @@ export async function putFloorPlan(
     );
   }
 
-  // TODO: emitir evento Socket.io (plano actualizado a recepción/camarero)
+  emitTo(FLOOR_ROOMS, SOCKET_EVENTS.FLOOR_UPDATED, { ok: true });
+  emitTo([SOCKET_ROOMS.backoffice], SOCKET_EVENTS.STATS_UPDATED, { ok: true });
+
   res.json({ ok: true, message: "Plano guardado" });
 }
 
@@ -238,7 +252,16 @@ export async function updateTableStatus(
   }
 
   const prevStatus = table.status;
+
+  if (prevStatus === "cuenta" && status === "limpiando") {
+    await registerTablePayment(table, req.staff?.id);
+  }
+
   table.status = status as TableStatus;
+
+  if ((OCCUPIED_STATUSES as readonly string[]).includes(status as string)) {
+    ensureTableSession(table);
+  }
 
   if (typeof guestCountRaw === "number") {
     table.guestCount = guestCountRaw;
@@ -248,6 +271,11 @@ export async function updateTableStatus(
 
   if (status !== "reservada") {
     table.set("reservation", null);
+  }
+
+  if (status === "limpiando") {
+    table.set("helpRequestedAt", null);
+    table.set("billRequestedAt", null);
   }
 
   if (status === "libre") {
@@ -262,7 +290,20 @@ export async function updateTableStatus(
 
   await table.save();
 
-  // TODO: emitir evento Socket.io (table:status)
+  const tableKey = String(table._id);
+  emitTo(FLOOR_ROOMS, SOCKET_EVENTS.TABLE_STATUS, {
+    tableId: tableKey,
+    status: table.status,
+  });
+  if (prevStatus === "cuenta" && status === "limpiando") {
+    emitTo(orderRooms(tableKey), SOCKET_EVENTS.ORDER_STATUS, {
+      orderId: "",
+      tableId: tableKey,
+      status: "pagado",
+    });
+  }
+  emitTo([SOCKET_ROOMS.backoffice], SOCKET_EVENTS.STATS_UPDATED, { ok: true });
+
   res.json({ ok: true, message: "Estado de mesa actualizado" });
 }
 
@@ -291,7 +332,8 @@ export async function releaseCleaningTables(
     },
   );
 
-  // TODO: emitir evento Socket.io (mesas liberadas)
+  emitTo(FLOOR_ROOMS, SOCKET_EVENTS.TABLES_RELEASED, { ok: true });
+
   res.json({
     ok: true,
     message: "Mesas en limpieza liberadas",

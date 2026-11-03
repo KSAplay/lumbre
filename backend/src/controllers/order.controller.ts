@@ -11,6 +11,15 @@ import { Notification } from "../models/Notification.js";
 import { Table } from "../models/Table.js";
 import { formatTableLabel } from "../utils/formatTableLabel.js";
 import { HttpError } from "../utils/httpError.js";
+import { ensureTableSession } from "../utils/tableSession.js";
+import {
+  FLOOR_ROOMS,
+  orderRooms,
+  SOCKET_EVENTS,
+  SOCKET_ROOMS,
+  tableRoom,
+} from "../sockets/events.js";
+import { emitTo } from "../sockets/io.js";
 
 type LineBody = {
   dishId: number;
@@ -104,6 +113,9 @@ async function buildItems(lines: LineBody[]) {
 
   return lines.map((line) => {
     const menu = byCode.get(line.dishId);
+    if (menu && menu.isAvailable === false) {
+      throw new HttpError(409, `"${menu.name}" no está disponible`);
+    }
     return {
       menuItem: menu?._id,
       dishCode: line.dishId,
@@ -111,6 +123,7 @@ async function buildItems(lines: LineBody[]) {
       price: typeof line.price === "number" ? line.price : (menu?.price ?? 0),
       quantity: line.quantity,
       done: false,
+      soldOut: false,
     };
   });
 }
@@ -128,7 +141,15 @@ export async function getTableRounds(
     return;
   }
 
-  const rounds = await Order.find({ tableNumber })
+  /** Solo la visita actual: el siguiente cliente no debe ver rondas ya cobradas. */
+  const table = await Table.findOne({ number: tableNumber })
+    .select("currentSessionId")
+    .lean();
+  const visitFilter = table?.currentSessionId
+    ? { sessionId: table.currentSessionId }
+    : { paidAt: { $exists: false } };
+
+  const rounds = await Order.find({ tableNumber, ...visitFilter })
     .sort({ sentAt: 1 })
     .lean();
 
@@ -190,7 +211,10 @@ export async function getKitchenTickets(
 ): Promise<void> {
   const [tickets, completed] = await Promise.all([
     Order.find({ status: "en_cocina" }).sort({ sentAt: 1 }).lean(),
-    Order.find({ status: "servido" }).sort({ completedAt: -1 }).limit(50).lean(),
+    Order.find({ status: { $in: ["servido", "pagado"] } })
+      .sort({ completedAt: -1 })
+      .limit(50)
+      .lean(),
   ]);
 
   const toTicket = (o: (typeof tickets)[number]) => ({
@@ -207,6 +231,7 @@ export async function getKitchenTickets(
       name: item.name,
       quantity: item.quantity,
       done: Boolean(item.done),
+      soldOut: Boolean(item.soldOut),
     })),
   });
 
@@ -233,7 +258,11 @@ export async function requestHelp(req: Request, res: Response): Promise<void> {
     read: false,
   });
 
-  // TODO: emitir evento Socket.io (ayuda)
+  emitTo([SOCKET_ROOMS.waiter], SOCKET_EVENTS.NOTIFICATION_NEW, {
+    tableId: String(table._id),
+    type: "ayuda",
+  });
+
   res.json({ ok: true, message: "Hemos avisado a sala. Enseguida te atendemos." });
 }
 
@@ -244,6 +273,7 @@ export async function requestBill(req: Request, res: Response): Promise<void> {
   const tableId = String(req.params.id ?? "");
   const table = await resolveTable(tableId);
   table.billRequestedAt = new Date();
+  ensureTableSession(table);
   table.status = "cuenta";
   table.statusChangedAt = new Date();
   await table.save();
@@ -256,7 +286,17 @@ export async function requestBill(req: Request, res: Response): Promise<void> {
     read: false,
   });
 
-  // TODO: emitir evento Socket.io (cuenta)
+  const tableKey = String(table._id);
+  emitTo([SOCKET_ROOMS.waiter], SOCKET_EVENTS.NOTIFICATION_NEW, {
+    tableId: tableKey,
+    type: "cuenta",
+  });
+  emitTo(FLOOR_ROOMS, SOCKET_EVENTS.TABLE_STATUS, {
+    tableId: tableKey,
+    status: table.status,
+  });
+  emitTo([SOCKET_ROOMS.backoffice], SOCKET_EVENTS.STATS_UPDATED, { ok: true });
+
   res.json({ ok: true, message: "Cuenta solicitada. Enseguida te atendemos." });
 }
 
@@ -277,14 +317,14 @@ export async function sendRound(req: Request, res: Response): Promise<void> {
       ? req.body.tableLabel.trim()
       : formatTableLabel(table.number);
 
+  const sessionId = ensureTableSession(table);
+
   const orderDoc = {
     number,
     tableId: table._id,
     tableLabel,
     tableNumber: table.number,
-    ...(table.currentSessionId
-      ? { sessionId: table.currentSessionId }
-      : {}),
+    sessionId,
     status: "por_confirmar" as const,
     ...(note ? { note } : {}),
     alert: null,
@@ -297,8 +337,8 @@ export async function sendRound(req: Request, res: Response): Promise<void> {
   if (table.status === "libre" || table.status === "decidiendo") {
     table.status = "esperando";
     table.statusChangedAt = new Date();
-    await table.save();
   }
+  await table.save();
 
   await Notification.create({
     type: "nuevo_pedido",
@@ -309,7 +349,27 @@ export async function sendRound(req: Request, res: Response): Promise<void> {
     roundId: String(order._id),
   });
 
-  // TODO: emitir evento Socket.io (order:new / order:status)
+  const tableKey = String(table._id);
+  const orderPayload = {
+    orderId: String(order._id),
+    tableId: tableKey,
+    status: order.status,
+  };
+  emitTo(
+    [SOCKET_ROOMS.waiter, tableRoom(tableKey)],
+    SOCKET_EVENTS.ORDER_NEW,
+    orderPayload,
+  );
+  emitTo([SOCKET_ROOMS.waiter], SOCKET_EVENTS.NOTIFICATION_NEW, {
+    tableId: tableKey,
+    type: "nuevo_pedido",
+  });
+  emitTo(FLOOR_ROOMS, SOCKET_EVENTS.TABLE_STATUS, {
+    tableId: tableKey,
+    status: table.status,
+  });
+  emitTo([SOCKET_ROOMS.backoffice], SOCKET_EVENTS.STATS_UPDATED, { ok: true });
+
   res.status(201).json({
     ok: true,
     id: String(order._id),
@@ -339,14 +399,14 @@ export async function sendManualRound(
       ? req.body.tableLabel.trim()
       : formatTableLabel(table.number);
 
+  const sessionId = ensureTableSession(table);
+
   const orderDoc = {
     number,
     tableId: table._id,
     tableLabel,
     tableNumber: table.number,
-    ...(table.currentSessionId
-      ? { sessionId: table.currentSessionId }
-      : {}),
+    sessionId,
     status: "en_cocina" as const,
     ...(note ? { note } : {}),
     alert: null,
@@ -360,7 +420,18 @@ export async function sendManualRound(
   table.statusChangedAt = new Date();
   await table.save();
 
-  // TODO: emitir evento Socket.io (order:en_cocina)
+  const tableKey = String(table._id);
+  emitTo(orderRooms(tableKey), SOCKET_EVENTS.ORDER_STATUS, {
+    orderId: String(order._id),
+    tableId: tableKey,
+    status: order.status,
+  });
+  emitTo(FLOOR_ROOMS, SOCKET_EVENTS.TABLE_STATUS, {
+    tableId: tableKey,
+    status: table.status,
+  });
+  emitTo([SOCKET_ROOMS.backoffice], SOCKET_EVENTS.STATS_UPDATED, { ok: true });
+
   res.status(201).json({
     ok: true,
     id: String(order._id),
@@ -400,7 +471,14 @@ export async function confirmRound(
   order.alert = null;
   await order.save();
 
-  // TODO: emitir evento Socket.io (order:status en_cocina)
+  const tableKey = String(order.tableId);
+  emitTo(orderRooms(tableKey), SOCKET_EVENTS.ORDER_STATUS, {
+    orderId: String(order._id),
+    tableId: tableKey,
+    status: order.status,
+  });
+  emitTo([SOCKET_ROOMS.backoffice], SOCKET_EVENTS.STATS_UPDATED, { ok: true });
+
   res.json({
     ok: true,
     status: "en_cocina",
@@ -424,7 +502,13 @@ export async function rejectRound(req: Request, res: Response): Promise<void> {
   order.status = "cancelado";
   await order.save();
 
-  // TODO: emitir evento Socket.io (order:status cancelado)
+  const tableKey = String(order.tableId);
+  emitTo(orderRooms(tableKey), SOCKET_EVENTS.ORDER_STATUS, {
+    orderId: String(order._id),
+    tableId: tableKey,
+    status: order.status,
+  });
+
   res.json({
     ok: true,
     status: "cancelado",
@@ -460,7 +544,12 @@ export async function patchOrderItem(
   item.done = done;
   await order.save();
 
-  // TODO: emitir evento Socket.io (item:done)
+  emitTo([SOCKET_ROOMS.kitchen], SOCKET_EVENTS.ORDER_ITEM_DONE, {
+    orderId: String(order._id),
+    itemId,
+    done,
+  });
+
   res.json({ ok: true, message: "Ítem actualizado" });
 }
 
@@ -502,7 +591,23 @@ export async function patchOrderAlert(
     });
   }
 
-  // TODO: emitir evento Socket.io (order:alert)
+  const tableKey = String(order.tableId);
+  emitTo(
+    [SOCKET_ROOMS.waiter, SOCKET_ROOMS.kitchen],
+    SOCKET_EVENTS.ORDER_ALERT,
+    {
+      orderId: String(order._id),
+      tableId: tableKey,
+      alert,
+    },
+  );
+  if (alert) {
+    emitTo([SOCKET_ROOMS.waiter], SOCKET_EVENTS.NOTIFICATION_NEW, {
+      tableId: tableKey,
+      type: "incidencia_cocina",
+    });
+  }
+
   res.json({ ok: true, message: "Alerta actualizada", alert });
 }
 
@@ -519,7 +624,8 @@ export async function completeRound(
     throw new HttpError(404, "Ronda no encontrada");
   }
 
-  order.status = "servido";
+  /** Si la mesa se cobró mientras cocina terminaba, la ronda cierra ya como pagada. */
+  order.status = order.paidAt ? "pagado" : "servido";
   order.completedAt = new Date();
   order.alert = null;
   await order.save();
@@ -533,7 +639,18 @@ export async function completeRound(
     roundId: String(order._id),
   });
 
-  // TODO: emitir evento Socket.io (order:status servido)
+  const tableKey = String(order.tableId);
+  emitTo(orderRooms(tableKey), SOCKET_EVENTS.ORDER_STATUS, {
+    orderId: String(order._id),
+    tableId: tableKey,
+    status: order.status,
+  });
+  emitTo([SOCKET_ROOMS.waiter], SOCKET_EVENTS.NOTIFICATION_NEW, {
+    tableId: tableKey,
+    type: "plato_listo",
+  });
+  emitTo([SOCKET_ROOMS.backoffice], SOCKET_EVENTS.STATS_UPDATED, { ok: true });
+
   res.json({ ok: true, status: "servido", message: "Comanda terminada" });
 }
 
@@ -554,7 +671,14 @@ export async function restoreRound(
   order.set("completedAt", null);
   await order.save();
 
-  // TODO: emitir evento Socket.io (order:status en_cocina)
+  const tableKey = String(order.tableId);
+  emitTo(orderRooms(tableKey), SOCKET_EVENTS.ORDER_STATUS, {
+    orderId: String(order._id),
+    tableId: tableKey,
+    status: order.status,
+  });
+  emitTo([SOCKET_ROOMS.backoffice], SOCKET_EVENTS.STATS_UPDATED, { ok: true });
+
   res.json({ ok: true, status: "en_cocina", message: "Comanda restaurada" });
 }
 

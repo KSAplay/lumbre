@@ -1,6 +1,6 @@
 import type { KitchenAlertType, OrderStatus } from "../models/Order.js";
 import type { NotificationType } from "../models/Notification.js";
-import type { StaffRole } from "../models/Staff.js";
+import type { StaffGender, StaffRole } from "../models/Staff.js";
 import type {
   TableOrientation,
   TableShape,
@@ -21,6 +21,7 @@ export type MockStaff = {
   name: string;
   pin: string;
   role: StaffRole;
+  gender: StaffGender;
 };
 
 export type MockCategory = {
@@ -112,10 +113,103 @@ const SQUARE_CORNERS = {
 } as const;
 
 export const staffMock: MockStaff[] = [
-  { name: "Recepción", pin: "1111", role: "recepcion" },
-  { name: "Cocina", pin: "2222", role: "cocina" },
-  { name: "Camarero", pin: "3333", role: "camarero" },
-  { name: "Backoffice", pin: "9999", role: "backoffice" },
+  { name: "Laura Méndez", pin: "1111", role: "recepcion", gender: "mujer" },
+  { name: "Andrés Quispe", pin: "2222", role: "cocina", gender: "hombre" },
+  { name: "Camila Torres", pin: "2222", role: "cocina", gender: "mujer" },
+  { name: "Diego Soto", pin: "3333", role: "camarero", gender: "hombre" },
+  { name: "Kenny Saavedra", pin: "9999", role: "backoffice", gender: "hombre" },
+];
+
+/**
+ * Cobros ya cerrados, ajenos al plano en curso.
+ * `dayFraction` sitúa el cobro dentro del día (0 = medianoche, 1 = ahora).
+ */
+export type MockClosedSale = {
+  tableNumber: number;
+  guestCount: number;
+  dayFraction: number;
+  items: { dishCode: number; quantity: number }[];
+};
+
+/** Ventas de hoy: alimentan el resumen y el gráfico del backoffice. */
+export const todaySalesMock: MockClosedSale[] = [
+  {
+    tableNumber: 31,
+    guestCount: 4,
+    dayFraction: 0.35,
+    items: [
+      { dishCode: 5, quantity: 2 },
+      { dishCode: 1, quantity: 2 },
+      { dishCode: 11, quantity: 4 },
+    ],
+  },
+  {
+    tableNumber: 32,
+    guestCount: 2,
+    dayFraction: 0.55,
+    items: [
+      { dishCode: 6, quantity: 2 },
+      { dishCode: 12, quantity: 2 },
+      { dishCode: 11, quantity: 2 },
+    ],
+  },
+  {
+    tableNumber: 33,
+    guestCount: 3,
+    dayFraction: 0.72,
+    items: [
+      { dishCode: 7, quantity: 1 },
+      { dishCode: 5, quantity: 1 },
+      { dishCode: 10, quantity: 3 },
+      { dishCode: 11, quantity: 3 },
+    ],
+  },
+  {
+    tableNumber: 34,
+    guestCount: 2,
+    dayFraction: 0.88,
+    items: [
+      { dishCode: 8, quantity: 2 },
+      { dishCode: 2, quantity: 1 },
+      { dishCode: 12, quantity: 2 },
+    ],
+  },
+];
+
+/** Servicio de ayer: solo existe como cierre de turno en el historial. */
+export const yesterdaySalesMock: MockClosedSale[] = [
+  {
+    tableNumber: 41,
+    guestCount: 4,
+    dayFraction: 0.4,
+    items: [
+      { dishCode: 5, quantity: 3 },
+      { dishCode: 11, quantity: 4 },
+      { dishCode: 9, quantity: 2 },
+    ],
+  },
+  {
+    tableNumber: 42,
+    guestCount: 2,
+    dayFraction: 0.6,
+    items: [
+      { dishCode: 6, quantity: 2 },
+      { dishCode: 4, quantity: 1 },
+      { dishCode: 12, quantity: 2 },
+    ],
+  },
+  {
+    tableNumber: 43,
+    guestCount: 5,
+    dayFraction: 0.8,
+    items: [
+      { dishCode: 8, quantity: 2 },
+      { dishCode: 7, quantity: 2 },
+      { dishCode: 1, quantity: 2 },
+      { dishCode: 10, quantity: 4 },
+      { dishCode: 11, quantity: 5 },
+    ],
+  },
 ];
 
 export const categoriesMock: MockCategory[] = [

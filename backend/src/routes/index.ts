@@ -1,9 +1,13 @@
 import { Router } from "express";
 import mongoose from "mongoose";
+import adminRouter from "./admin.routes.js";
 import authRouter from "./auth.routes.js";
 import menuRouter from "./menu.routes.js";
 import notificationRouter from "./notification.routes.js";
 import orderRouter from "./order.routes.js";
+import settingsRouter from "./settings.routes.js";
+import shiftRouter from "./shift.routes.js";
+import staffRouter from "./staff.routes.js";
 import tableRouter from "./table.routes.js";
 
 /**
@@ -30,6 +34,10 @@ apiRouter.get("/health", (_req, res) => {
 
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/menu", menuRouter);
+apiRouter.use("/staff", staffRouter);
+apiRouter.use("/turnos", shiftRouter);
+apiRouter.use("/settings", settingsRouter);
+apiRouter.use("/admin", adminRouter);
 apiRouter.use(tableRouter);
 apiRouter.use(orderRouter);
 apiRouter.use("/avisos", notificationRouter);
