@@ -1,126 +1,107 @@
 import type { Server as HttpServer } from "node:http";
-import { SOCKET_EVENTS } from "./events.js";
+import { Server } from "socket.io";
+import { STAFF_ROLES, type StaffRole } from "../models/Staff.js";
+import { Table } from "../models/Table.js";
+import { verifyStaffToken } from "../utils/jwt.js";
+import { SOCKET_ROOMS } from "./events.js";
+import { setIO } from "./io.js";
 
 /**
- * Registro de Socket.io sobre el HTTP server de Express.
+ * Engancha Socket.io al mismo puerto que Express.
  *
- * Hoy: stub. Cuando se implemente, llamar desde `src/index.ts`:
- *   registerSockets(httpServer);
+ * Staff entra con el JWT del login. El cliente de mesa entra con el id de la
+ * URL (`/mesa/:tableId`), que puede ser el `_id` del plano o el número visible.
  *
- * Dependencia ya instalada: `socket.io` ^4.x.
- * Frontend pendiente: añadir `socket.io-client` y un hook/servicio compartido
- * (p. ej. `frontend/src/services/socketService.ts` + `useStaffSocket` /
- * `useTableSocket`) que haga join a rooms y reaccione a {@link SOCKET_EVENTS}.
- *
- * ---------------------------------------------------------------------------
- * TODO(sockets) — CHECKLIST DE CABLEADO EN VIVO
- * ---------------------------------------------------------------------------
- *
- * A) BOOTSTRAP
- * 1. Crear `Server` de socket.io sobre `httpServer` (CORS = origen Vite).
- * 2. Middleware de auth en `connection` (JWT staff o tableId cliente).
- * 3. Al conectar: `socket.join(room)` según rol / mesa (ver `events.ts`).
- * 4. Exportar `getIO()` para que los controladores emitan tras persistir.
- * 5. Descomentar registro en `src/index.ts`.
- *
- * B) EMISORES (backend REST → socket). Tras el `save`/`create` exitoso:
- *
- *    table.controller.ts
- *    - putFloorPlan          → floor:updated
- *      (recepción añade/edita/borra mesas y muros; NO backoffice)
- *    - updateTableStatus     → table:status
- *    - releaseCleaningTables → tables:released
- *
- *    order.controller.ts
- *    - requestHelp           → notification:new (+ table:status si aplica)
- *    - requestBill           → notification:new + table:status (cuenta)
- *    - sendRound             → order:new + notification:new (+ table:status)
- *    - sendManualRound       → order:status (en_cocina) → KDS
- *    - confirmRound          → order:status (en_cocina) → KDS + mesa:{id}
- *    - rejectRound           → order:status (cancelado) → mesa:{id}
- *    - patchOrderItem        → order:item:done → cocina
- *    - patchOrderAlert       → order:alert + notification:new → camarero
- *    - completeRound         → order:status (servido) + notification:new (plato_listo)
- *    - restoreRound          → order:status (en_cocina) → KDS
- *
- *    notification.controller.ts
- *    - markNotificationRead  → notification:read (sync multi-dispositivo camarero)
- *
- *    menu / upload (cuando existan CRUD de backoffice)
- *    - create/update/delete plato, categoría, imagen, isAvailable
- *      → menu:updated
- *      Destino: backoffice + quien muestra carta (cliente, comanda manual).
- *      NO emitir floor/table desde aquí: el plano vive en recepción.
- *
- * C) RECEPTORES (frontend — hoy solo cargan al montar / HTTP)
- *
- *    Cliente (`CustomerMenuView`, `OrdersHistorySheet`)
- *    - Escuchar order:status / order:new de su `mesa:{tableId}`
- *      (sustituir TODOs de estado mock / sin recargar).
- *    - Escuchar menu:updated → refetch `getMenu()` o patch local.
- *
- *    Camarero (`WaiterView`, `ManualOrderPanel`)
- *    - order:new / notification:new → pendientes + avisos.
- *    - order:status (servido/alerta) → avisos plato_listo / incidencias.
- *    - table:status / floor:updated / tables:released → plano mesas.
- *    - menu:updated → refrescar carta en comanda manual.
- *    - Tras confirm/reject/manual: el backend emite; no hace falta que el
- *      propio emisor “emita desde el front” (los TODOs del front son recordatorios).
- *
- *    Cocina (`KitchenKDSView`)
- *    - order:status en_cocina → insertar ticket (caso que hoy no aparece en vivo).
- *    - order:item:done / order:alert / order:status servido|restaurar → sync KDS.
- *    - El TODO de “emitir incidencia a sala” se resuelve en backend
- *      (patchOrderAlert), no emitiendo desde el navegador.
- *
- *    Recepción (`ReceptionDashboardView`)
- *    - floor:updated / table:status / tables:released → plano en vivo
- *      (otra tablet/PC de recepción o camarero concurrente).
- *    - QR: generación en UI de recepción (lote / por mesa); si el token/URL
- *      de mesa cambia, valorar evento dedicado o incluir en floor:updated.
- *      Las mesas NUNCA se administran desde backoffice.
- *
- *    Backoffice (`AdminDashboardView` — aún placeholder)
- *    - CRUD carta, imágenes (multer), categorías, datos del restaurante.
- *    - Tras mutar → menu:updated (y futuros eventos `restaurant:*` si hay
- *      ajustes globales: nombre, horarios, etc.).
- *    - Suscribirse a menu:updated si hay varias sesiones admin.
- *    - Fuera de alcance socket de mesas/plano (eso es recepción).
- *
- * D) ORDEN DE IMPLEMENTACIÓN SUGERIDO
- * 1. Bootstrap + getIO + rooms staff/mesa.
- * 2. Flujo crítico comanda: sendRound → confirmRound → KDS (order:*).
- * 3. Avisos sala: ayuda, cuenta, plato_listo, alertas cocina.
- * 4. Plano: floor:updated + table:status + liberar limpias.
- * 5. Carta en vivo: CRUD backoffice + menu:updated → cliente/camarero.
- *
- * E) FUERA DE SOCKET (sigue siendo HTTP)
- * - Login PIN / JWT.
- * - Carga inicial de plano, menú, tickets, pendientes (socket complementa).
- * - Subida binaria de imágenes (multipart); el socket solo avisa el cambio.
+ * @param httpServer - Servidor creado con `createServer(app)`.
  */
+export function registerSockets(httpServer: HttpServer): void {
+  const io = new Server(httpServer, {
+    cors: { origin: true, credentials: true },
+  });
 
-/**
- * Engancha Socket.io al servidor HTTP compartido con Express.
- *
- * @param _httpServer - Servidor creado con `createServer(app)` en `src/index.ts`.
- */
-export function registerSockets(_httpServer: HttpServer): void {
-  // TODO(sockets): const io = new Server(_httpServer, { cors: { ... } });
-  // TODO(sockets): auth middleware + join rooms + handlers de conexión.
-  // TODO(sockets): guardar instancia para getIO() y emitir desde controllers.
-  void SOCKET_EVENTS;
-  void _httpServer;
+  io.use((socket, next) => {
+    void authorizeSocket(socket)
+      .then(() => next())
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : "No autorizado";
+        next(new Error(message));
+      });
+  });
+
+  io.on("connection", (socket) => {
+    const role = socket.data.role as string | undefined;
+    if (role === "cliente") {
+      const tableId = socket.data.tableId as string;
+      void socket.join(`mesa:${tableId}`);
+      void socket.join(SOCKET_ROOMS.menu);
+      return;
+    }
+
+    if (!role || !isStaffRole(role)) return;
+
+    void socket.join(`staff:${role}`);
+    if (role === "camarero" || role === "backoffice") {
+      void socket.join(SOCKET_ROOMS.menu);
+    }
+  });
+
+  setIO(io);
 }
 
 /**
- * Acceso a la instancia IO desde controladores (tras registerSockets).
+ * Admite JWT de personal o el identificador de mesa del cliente.
  *
- * @throws Error si se llama antes de registrar sockets.
+ * @throws Error si no hay credencial válida o la mesa no existe.
  */
-export function getIO(): never {
-  // TODO(sockets): devolver la instancia real de Server.
-  throw new Error(
-    "Socket.io aún no está registrado. Implementar registerSockets + getIO.",
-  );
+async function authorizeSocket(socket: {
+  handshake: { auth?: unknown };
+  data: { role?: string; tableId?: string; staffId?: string };
+}): Promise<void> {
+  const auth = socket.handshake.auth;
+  const token =
+    auth && typeof auth === "object" && "token" in auth
+      ? (auth as { token?: unknown }).token
+      : undefined;
+  const tableKey =
+    auth && typeof auth === "object" && "tableId" in auth
+      ? (auth as { tableId?: unknown }).tableId
+      : undefined;
+
+  if (typeof token === "string" && token.trim()) {
+    const payload = verifyStaffToken(token.trim());
+    if (!isStaffRole(payload.role)) {
+      throw new Error("Rol de personal no válido");
+    }
+    socket.data.role = payload.role;
+    socket.data.staffId = payload.sub;
+    return;
+  }
+
+  if (typeof tableKey === "string" && tableKey.trim()) {
+    const table = await findCustomerTable(tableKey.trim());
+    if (!table) {
+      throw new Error("Mesa no válida");
+    }
+    socket.data.role = "cliente";
+    socket.data.tableId = table._id;
+    return;
+  }
+
+  throw new Error("No autorizado");
+}
+
+/**
+ * Busca la mesa por `_id` o, si el QR trae el número visible, por `number`.
+ */
+async function findCustomerTable(raw: string) {
+  const byId = await Table.findById(raw);
+  if (byId) return byId;
+
+  const asNumber = Number(raw);
+  if (!Number.isInteger(asNumber) || asNumber <= 0) return null;
+  return Table.findOne({ number: asNumber });
+}
+
+function isStaffRole(value: string): value is StaffRole {
+  return (STAFF_ROLES as readonly string[]).includes(value);
 }

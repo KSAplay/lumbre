@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import {
   BrickWall,
@@ -26,6 +26,8 @@ import { StaffShell } from "../../components/ui/StaffShell";
 import { UserMenu, type UserMenuItem } from "../../components/ui/UserMenu";
 import { useToast } from "../../components/ui/useToast";
 import { clearStaffToken } from "../../config/api";
+import { useSocketRefresh } from "../../hooks/useSocketRefresh";
+import { closeShift } from "../../services/shiftService";
 import { maxGuestsForShape, VIEW_GRID_PX } from "../../constants/floorPlan";
 import {
   getFloorPlan,
@@ -33,6 +35,11 @@ import {
   saveFloorPlan,
   updateTableStatus,
 } from "../../services/tableService";
+import {
+  connectStaff,
+  disconnectSocket,
+} from "../../services/socketClient";
+import { SOCKET_EVENTS } from "../../services/socketEvents";
 import type {
   FloorSelection,
   FloorWallData,
@@ -57,6 +64,12 @@ const ZONE_TABS: { id: ZoneId; label: string }[] = [
   { id: "interior", label: "Interior" },
   { id: "terraza", label: "Terraza" },
 ];
+
+const RECEPTION_EVENTS = [
+  SOCKET_EVENTS.FLOOR_UPDATED,
+  SOCKET_EVENTS.TABLE_STATUS,
+  SOCKET_EVENTS.TABLES_RELEASED,
+] as const;
 
 function shapeForGuests(zone: ZoneId, guests: number) {
   if (zone === "terraza") return "circle" as const;
@@ -131,6 +144,27 @@ export const ReceptionDashboardView = () => {
       cancelled = true;
     };
   }, []);
+
+  const refreshFloor = useCallback(async () => {
+    if (editMode) return;
+    try {
+      const data = await getFloorPlan();
+      setTables(data.tables);
+      setWalls(data.walls);
+      setFloorError(false);
+    } catch {
+      /* el siguiente evento reintenta */
+    }
+  }, [editMode]);
+
+  useEffect(() => {
+    connectStaff();
+    return () => disconnectSocket();
+  }, []);
+
+  useSocketRefresh(RECEPTION_EVENTS, () => {
+    void refreshFloor();
+  });
 
   useEffect(() => {
     const id = window.setInterval(() => setNowMs(Date.now()), 1000);
@@ -428,10 +462,22 @@ export const ReceptionDashboardView = () => {
         "Se cerrará el turno de recepción y volverás al inicio de sesión.",
       confirmLabel: "Finalizar",
     },
-    // TODO: cerrar turno en el backend antes de volver al login
     onSelect: () => {
-      clearStaffToken();
-      navigate("/login");
+      void (async () => {
+        try {
+          await closeShift();
+          clearStaffToken();
+          navigate("/login");
+        } catch (err) {
+          showToast({
+            message:
+              err instanceof Error
+                ? err.message
+                : "No se pudo cerrar el turno.",
+            tone: "red",
+          });
+        }
+      })();
     },
   };
 

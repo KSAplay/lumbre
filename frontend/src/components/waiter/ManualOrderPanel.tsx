@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ImageOff,
   LoaderCircle,
@@ -15,6 +15,8 @@ import { TABLE_STATUS_DOT } from "../../constants/tableStatus";
 import { formatTableLabel } from "../../utils/mockHydrate";
 import { getMenu } from "../../services/orderService";
 import { sendManualOrder } from "../../services/waiterService";
+import { SOCKET_EVENTS } from "../../services/socketEvents";
+import { useSocketRefresh } from "../../hooks/useSocketRefresh";
 import type { Category, CategoryId, Dish } from "../../types/menu";
 import type { TableNodeData } from "../../types/table";
 import type { WaiterOrderLine } from "../../types/waiter";
@@ -101,6 +103,21 @@ export const ManualOrderPanel = ({
     };
   }, []);
 
+  const refreshMenu = useCallback(async () => {
+    try {
+      const data = await getMenu();
+      setCategories(data.categories);
+      setDishes(data.dishes.filter((dish) => dish.isAvailable));
+      setMenuError(false);
+    } catch {
+      /* el siguiente evento reintenta */
+    }
+  }, []);
+
+  useSocketRefresh([SOCKET_EVENTS.MENU_UPDATED], () => {
+    void refreshMenu();
+  });
+
   const quantityOf = (dishId: number) =>
     lines.find((line) => line.dishId === dishId)?.quantity ?? 0;
 
@@ -146,7 +163,6 @@ export const ManualOrderPanel = ({
         items: lines,
         sentAt: new Date().toISOString(),
       });
-      // TODO: emitir la comanda manual a cocina por Socket.io para que aparezca en el KDS
       setLines([]);
       setNote("");
       setNoteOpen(false);

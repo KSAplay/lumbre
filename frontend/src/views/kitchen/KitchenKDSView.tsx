@@ -17,6 +17,7 @@ import { StaffShell } from "../../components/ui/StaffShell";
 import { UserMenu, type UserMenuItem } from "../../components/ui/UserMenu";
 import { useToast } from "../../components/ui/useToast";
 import { clearStaffToken } from "../../config/api";
+import { useSocketRefresh } from "../../hooks/useSocketRefresh";
 import { KITCHEN_ALERTS } from "../../constants/kitchenAlerts";
 import {
   completeKitchenTicket,
@@ -25,6 +26,11 @@ import {
   setKitchenItemDone,
   setKitchenTicketAlert,
 } from "../../services/kitchenService";
+import {
+  connectStaff,
+  disconnectSocket,
+} from "../../services/socketClient";
+import { SOCKET_EVENTS } from "../../services/socketEvents";
 import type { KitchenAlertType, KitchenTicket } from "../../types/kitchen";
 
 type KdsTab = "pending" | "completed";
@@ -33,6 +39,12 @@ const TABS: { id: KdsTab; label: string }[] = [
   { id: "pending", label: "En cocina" },
   { id: "completed", label: "Terminadas" },
 ];
+
+const KITCHEN_EVENTS = [
+  SOCKET_EVENTS.ORDER_STATUS,
+  SOCKET_EVENTS.ORDER_ITEM_DONE,
+  SOCKET_EVENTS.ORDER_ALERT,
+] as const;
 
 export const KitchenKDSView = () => {
   const { showToast } = useToast();
@@ -72,6 +84,26 @@ export const KitchenKDSView = () => {
       cancelled = true;
     };
   }, []);
+
+  const refreshTickets = useCallback(async () => {
+    try {
+      const data = await getKitchenTickets();
+      setTickets(data.tickets);
+      setCompleted(data.completed);
+      setDataError(false);
+    } catch {
+      /* el siguiente evento reintenta */
+    }
+  }, []);
+
+  useEffect(() => {
+    connectStaff();
+    return () => disconnectSocket();
+  }, []);
+
+  useSocketRefresh(KITCHEN_EVENTS, () => {
+    void refreshTickets();
+  });
 
   useEffect(() => {
     const id = window.setInterval(() => setNowMs(Date.now()), 1000);
@@ -205,7 +237,6 @@ export const KitchenKDSView = () => {
   const handleSelectAlert = (alert: KitchenAlertType) => {
     const config = KITCHEN_ALERTS[alert];
     void applyTicketAlert(alert);
-    // TODO: emitir la incidencia a sala por Socket.io
     showToast({
       message: `${config.label} · ${alertTicket?.tableLabel ?? ""}`,
       icon: <BellRing className="size-4" strokeWidth={2.5} />,

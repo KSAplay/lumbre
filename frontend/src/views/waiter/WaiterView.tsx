@@ -30,6 +30,7 @@ import { StaffShell } from "../../components/ui/StaffShell";
 import { UserMenu, type UserMenuItem } from "../../components/ui/UserMenu";
 import { useToast } from "../../components/ui/useToast";
 import { clearStaffToken } from "../../config/api";
+import { useSocketRefresh } from "../../hooks/useSocketRefresh";
 import { WAITER_ACTION_NEXT_STATUS } from "../../constants/waiterTableActions";
 import {
   getFloorPlan,
@@ -42,6 +43,11 @@ import {
   markNotificationRead,
   rejectOrder,
 } from "../../services/waiterService";
+import {
+  connectStaff,
+  disconnectSocket,
+} from "../../services/socketClient";
+import { SOCKET_EVENTS } from "../../services/socketEvents";
 import type { TableNodeData, TableStatus } from "../../types/table";
 import type {
   PendingOrder,
@@ -61,6 +67,17 @@ const ORDERABLE_STATUSES: ReadonlySet<TableStatus> = new Set([
 
 const PANEL_SCROLL =
   "min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-6 md:px-6 md:pt-5 [-ms-overflow-style:none] [scrollbar-none] [&::-webkit-scrollbar]:hidden";
+
+const WAITER_EVENTS = [
+  SOCKET_EVENTS.ORDER_NEW,
+  SOCKET_EVENTS.ORDER_STATUS,
+  SOCKET_EVENTS.ORDER_ALERT,
+  SOCKET_EVENTS.NOTIFICATION_NEW,
+  SOCKET_EVENTS.NOTIFICATION_READ,
+  SOCKET_EVENTS.TABLE_STATUS,
+  SOCKET_EVENTS.FLOOR_UPDATED,
+  SOCKET_EVENTS.TABLES_RELEASED,
+] as const;
 
 export const WaiterView = () => {
   const navigate = useNavigate();
@@ -84,6 +101,28 @@ export const WaiterView = () => {
   const [manualTableId, setManualTableId] = useState<string | null>(null);
   const [notificationFilter, setNotificationFilter] =
     useState<NotificationFilter>("all");
+
+  const refreshSala = useCallback(async () => {
+    try {
+      const [floor, pending, avisos] = await Promise.all([
+        getFloorPlan(),
+        getPendingOrders(),
+        getWaiterNotifications(),
+      ]);
+      setTables(floor.tables);
+      setOrders((prev) => {
+        const leaving = prev.filter((order) => leavingOrderIds.has(order.id));
+        const fresh = pending.orders.filter(
+          (order) => !leavingOrderIds.has(order.id),
+        );
+        return [...fresh, ...leaving];
+      });
+      setNotifications(avisos.notifications);
+      setDataError(false);
+    } catch {
+      /* el siguiente evento reintenta */
+    }
+  }, [leavingOrderIds]);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,6 +152,15 @@ export const WaiterView = () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    connectStaff();
+    return () => disconnectSocket();
+  }, []);
+
+  useSocketRefresh(WAITER_EVENTS, () => {
+    void refreshSala();
+  });
 
   useEffect(() => {
     const id = window.setInterval(() => setNowMs(Date.now()), 1000);
@@ -223,7 +271,6 @@ export const WaiterView = () => {
         items: order.items,
         note: order.note,
       });
-      // TODO: emitir ronda confirmada a cocina por Socket.io (llegará al KDS como ticket)
       startLeaving(orderId);
       applyTableStatus(order.tableId, "esperando");
       markTableOrderNotificationsRead(order.tableId);
@@ -249,7 +296,6 @@ export const WaiterView = () => {
     setBusyOrderId(order.id);
     try {
       await rejectOrder(order.id, { tableId: order.tableId });
-      // TODO: notificar al cliente por Socket.io que su ronda se ha cancelado
       startLeaving(order.id);
       markTableOrderNotificationsRead(order.tableId);
       showToast({

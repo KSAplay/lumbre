@@ -1,6 +1,8 @@
 import type { Request, Response } from "express";
 import { Notification } from "../models/Notification.js";
 import { HttpError } from "../utils/httpError.js";
+import { SOCKET_EVENTS, SOCKET_ROOMS } from "../sockets/events.js";
+import { emitTo } from "../sockets/io.js";
 
 /**
  * Lista avisos del camarero (más recientes primero).
@@ -48,6 +50,10 @@ export async function markNotificationRead(
   if (!notification) {
     throw new HttpError(404, "Aviso no encontrado");
   }
+
+  emitTo([SOCKET_ROOMS.waiter], SOCKET_EVENTS.NOTIFICATION_READ, {
+    notificationId: String(notification._id),
+  });
 
   res.json({ ok: true, message: "Aviso marcado como leído" });
 }

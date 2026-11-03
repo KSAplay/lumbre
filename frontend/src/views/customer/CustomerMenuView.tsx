@@ -25,6 +25,12 @@ import {
 import { ConfirmModal } from "../../components/ui/ConfirmModal";
 import { MarqueeText } from "../../components/ui/MarqueeText";
 import { mediaUrl } from "../../config/api";
+import { SOCKET_EVENTS } from "../../services/socketEvents";
+import {
+  connectTable,
+  disconnectSocket,
+} from "../../services/socketClient";
+import { useSocketRefresh } from "../../hooks/useSocketRefresh";
 import { getMenu, getTableRounds } from "../../services/orderService";
 import type { Category, CategoryId, Dish } from "../../types/menu";
 
@@ -41,6 +47,30 @@ const formatPrice = (price: number) =>
 const armHistoryGuard = () => {
   window.history.pushState(HISTORY_GUARD, "", window.location.href);
 };
+
+const CUSTOMER_MENU_EVENTS = [SOCKET_EVENTS.MENU_UPDATED] as const;
+const CUSTOMER_ROUND_EVENTS = [
+  SOCKET_EVENTS.ORDER_NEW,
+  SOCKET_EVENTS.ORDER_STATUS,
+] as const;
+
+function mapSentOrders(
+  rounds: Awaited<ReturnType<typeof getTableRounds>>,
+): SentOrder[] {
+  return rounds.map((round) => ({
+    id: round.id,
+    number: round.number,
+    sentAt: round.sentAt,
+    status: round.status,
+    note: round.note,
+    items: round.items.map((item) => ({
+      dishId: item.dishId,
+      name: item.name,
+      quantity: item.quantity,
+      price: item.price,
+    })),
+  }));
+}
 
 const toggleMenuFullscreen = async () => {
   try {
@@ -116,23 +146,14 @@ export const CustomerMenuView = () => {
           getTableRounds(tableId ?? ""),
         ]);
         if (cancelled) return;
-        setCategories(menu.categories);
-        setDishes(menu.dishes);
-        setSentOrders(
-          rounds.map((round) => ({
-            id: round.id,
-            number: round.number,
-            sentAt: round.sentAt,
-            status: round.status,
-            note: round.note,
-            items: round.items.map((item) => ({
-              dishId: item.dishId,
-              name: item.name,
-              quantity: item.quantity,
-              price: item.price,
-            })),
-          })),
+        const available = menu.dishes.filter((dish) => dish.isAvailable);
+        setDishes(available);
+        setCategories(
+          menu.categories.filter((category) =>
+            available.some((dish) => dish.category === category.id),
+          ),
         );
+        setSentOrders(mapSentOrders(rounds));
       } catch {
         if (!cancelled) setMenuError(true);
       } finally {
@@ -145,6 +166,44 @@ export const CustomerMenuView = () => {
       cancelled = true;
     };
   }, [tableId]);
+
+  const refreshMenu = useCallback(async () => {
+    try {
+      const menu = await getMenu();
+      const available = menu.dishes.filter((dish) => dish.isAvailable);
+      setDishes(available);
+      setCategories(
+        menu.categories.filter((category) =>
+          available.some((dish) => dish.category === category.id),
+        ),
+      );
+    } catch {
+      /* el siguiente evento reintenta */
+    }
+  }, []);
+
+  const refreshRounds = useCallback(async () => {
+    if (!tableId) return;
+    try {
+      const rounds = await getTableRounds(tableId);
+      setSentOrders(mapSentOrders(rounds));
+    } catch {
+      /* el siguiente evento reintenta */
+    }
+  }, [tableId]);
+
+  useEffect(() => {
+    if (!tableId) return;
+    connectTable(tableId);
+    return () => disconnectSocket();
+  }, [tableId]);
+
+  useSocketRefresh(CUSTOMER_MENU_EVENTS, () => {
+    void refreshMenu();
+  });
+  useSocketRefresh(CUSTOMER_ROUND_EVENTS, () => {
+    void refreshRounds();
+  }, Boolean(tableId));
 
   /*
    * Candado simple: una sola entrada fantasma.
@@ -213,19 +272,10 @@ export const CustomerMenuView = () => {
   };
 
   const handleOrderSent = (payload: SentOrderPayload) => {
-    setSentOrders((prev) => [
-      ...prev,
-      {
-        id: `order-${Date.now()}`,
-        number: prev.length + 1,
-        sentAt: payload.sentAt,
-        // TODO: Sustituir por estado en tiempo real (Socket.io) desde el backend
-        status: "por_confirmar",
-        items: payload.items,
-        note: payload.note,
-      },
-    ]);
     setCartItems([]);
+    if (payload.tableId === (tableId ?? "01")) {
+      void refreshRounds();
+    }
   };
 
   const dismissLeaveConfirm = () => {
