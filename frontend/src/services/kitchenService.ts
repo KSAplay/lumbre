@@ -20,6 +20,7 @@ type TicketApi = {
     name: string;
     quantity: number;
     done: boolean;
+    soldOut?: boolean;
   }[];
 };
 
@@ -40,6 +41,7 @@ function mapTicket(ticket: TicketApi): KitchenTicket {
       name: item.name,
       quantity: item.quantity,
       done: item.done,
+      soldOut: Boolean(item.soldOut),
     })),
   };
 }

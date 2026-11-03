@@ -7,6 +7,8 @@ export type KitchenTicketItem = {
   quantity: number;
   /** Plato tachado por el cocinero */
   done: boolean;
+  /** El plato se ocultó en carta con la ronda aún en cocina. */
+  soldOut?: boolean;
 };
 
 /** Comanda (ronda enviada por una mesa) tal como la ve el KDS */

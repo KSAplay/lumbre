@@ -262,25 +262,32 @@ export const KitchenTicketCard = ({
                         </span>
                       )}
                       <span
-                        className={`text-lg leading-snug font-semibold transition-colors duration-300 ${
+                        className={`flex min-w-0 flex-1 flex-wrap items-center gap-2 text-lg leading-snug font-semibold transition-colors duration-300 ${
                           struck ? "text-text-muted" : "text-text-main"
                         }`}
                       >
-                        <span
-                          className={`font-black ${
-                            struck ? "text-text-muted" : "text-terracotta-400"
-                          }`}
-                        >
-                          {item.quantity}x
-                        </span>{" "}
-                        {/* Tachado animado: el fondo crece de 0 % a 100 % y respeta los saltos de línea */}
-                        <span
-                          className={`bg-linear-to-r from-text-main to-text-main bg-no-repeat bg-position-[0_55%] transition-[background-size] duration-300 ease-out ${
-                            struck ? "bg-size-[100%_3px]" : "bg-size-[0%_3px]"
-                          }`}
-                        >
-                          {item.name}
+                        <span>
+                          <span
+                            className={`font-black ${
+                              struck ? "text-text-muted" : "text-terracotta-400"
+                            }`}
+                          >
+                            {item.quantity}x
+                          </span>{" "}
+                          {/* Tachado animado: el fondo crece de 0 % a 100 % y respeta los saltos de línea */}
+                          <span
+                            className={`bg-linear-to-r from-text-main to-text-main bg-no-repeat bg-position-[0_55%] transition-[background-size] duration-300 ease-out ${
+                              struck ? "bg-size-[100%_3px]" : "bg-size-[0%_3px]"
+                            }`}
+                          >
+                            {item.name}
+                          </span>
                         </span>
+                        {item.soldOut && (
+                          <span className="rounded-full bg-status-urgente/15 px-2 py-0.5 text-[11px] font-bold tracking-wide text-status-urgente uppercase">
+                            Agotado
+                          </span>
+                        )}
                       </span>
                     </button>
                   </li>

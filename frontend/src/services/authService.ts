@@ -1,12 +1,19 @@
-import { apiRequest, setStaffToken } from "../config/api";
+import { apiRequest, setStaffSession, setStaffToken } from "../config/api";
 
 export type StaffRole = "recepcion" | "cocina" | "camarero" | "backoffice";
+
+export type PinAuthStaff = {
+  id: string;
+  name: string;
+  imageUrl?: string;
+};
 
 export type PinAuthResponse = {
   ok: boolean;
   role: StaffRole;
   redirectPath: string;
   token?: string;
+  staff?: PinAuthStaff;
 };
 
 /**
@@ -24,6 +31,14 @@ export async function authenticatePin(pin: string): Promise<PinAuthResponse> {
 
   if (result.token) {
     setStaffToken(result.token);
+    if (result.staff) {
+      setStaffSession({
+        id: result.staff.id,
+        name: result.staff.name,
+        role: result.role,
+        ...(result.staff.imageUrl ? { imageUrl: result.staff.imageUrl } : {}),
+      });
+    }
   }
 
   return result;

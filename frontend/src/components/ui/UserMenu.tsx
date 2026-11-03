@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { User } from "lucide-react";
+import { getStaffSession, mediaUrl } from "../../config/api";
 import { ConfirmModal } from "./ConfirmModal";
 
 export type UserMenuItem = {
@@ -32,7 +33,11 @@ export const UserMenu = ({ items }: UserMenuProps) => {
   const [open, setOpen] = useState(false);
   const [pendingItem, setPendingItem] = useState<UserMenuItem | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [failedImage, setFailedImage] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const profile = getStaffSession();
+  const imageUrl = profile?.imageUrl;
+  const showPhoto = Boolean(imageUrl) && failedImage !== imageUrl;
 
   useEffect(() => {
     if (!open) return;
@@ -71,16 +76,30 @@ export const UserMenu = ({ items }: UserMenuProps) => {
   };
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="relative flex items-center gap-2.5">
+      {profile?.name ? (
+        <span className="max-w-36 truncate text-sm font-semibold text-white md:max-w-52 md:text-base">
+          {profile.name}
+        </span>
+      ) : null}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex size-10 cursor-pointer items-center justify-center rounded-full bg-white/20 text-white ring-1 ring-white/35 transition-transform hover:bg-white/30 active:scale-90 md:size-12"
+        className="flex size-10 cursor-pointer items-center justify-center overflow-hidden rounded-full bg-white/20 text-white ring-1 ring-white/35 transition-transform hover:bg-white/30 active:scale-90 md:size-12"
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Menú de usuario"
       >
-        <User className="size-5 md:size-6" strokeWidth={2.25} />
+        {showPhoto && imageUrl ? (
+          <img
+            src={mediaUrl(imageUrl)}
+            alt=""
+            className="size-full object-cover"
+            onError={() => setFailedImage(imageUrl)}
+          />
+        ) : (
+          <User className="size-5 md:size-6" strokeWidth={2.25} />
+        )}
       </button>
 
       {open && (
